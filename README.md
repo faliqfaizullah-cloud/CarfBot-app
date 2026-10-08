@@ -25,3 +25,4 @@ Install the APK, open CarfBot, grant permissions, then tap the gear icon, then "
 - Fonts: uses the system sans font. Drop Inter in `res/font` and edit `Sans` in `Theme.kt` to change it.
 - Android hides documents (PDF, DOCX) from apps, so document requests open the system file picker when there's no direct match.
 - The release APK is signed with the debug key so it installs directly. Use your own keystore for Play Store.
+# CarfBot
