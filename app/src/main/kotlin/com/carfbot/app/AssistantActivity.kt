@@ -324,7 +324,7 @@ fun AssistantScreen(onClose: () -> Unit) {
                     if (partial.isNotEmpty()) item { TranscriptItem(true, partial) }
                 }
                 Box(Modifier.fillMaxWidth().height(64.dp), contentAlignment = Alignment.Center) {
-                    AnimatedVisibility(visible = !atEnd) {
+                    if (!atEnd) {
                         DarkCircle(46.dp, {
                             scope.launch { listState.animateScrollToItem(max(0, listState.layoutInfo.totalItemsCount - 1)) }
                         }) { Icon(Icons.Filled.ArrowDownward, null, tint = Color.White, modifier = Modifier.size(20.dp)) }
