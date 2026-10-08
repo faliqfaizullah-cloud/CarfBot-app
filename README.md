@@ -17,6 +17,9 @@ Install the APK, open CarfBot, grant permissions, then tap the gear icon, then "
 When CarfBot is the default assistant, holding the power button (or long-pressing Home) opens a dark "Listening" overlay with an animated orb, live transcript and a glowing edge animation. Haptics fire when it opens, when listening starts, when a reply arrives and when an app, contact, song or file is opened.
 On some phones you must also set the power button to open the assistant: Settings > Advanced features > Side key > Press and hold > Wake digital assistant (Samsung), or Settings > System > Gestures > Power menu (Pixel).
 
+## Icon
+The launcher icon is a glowing blue ring on black (adaptive icon, with a monochrome version for themed icons). Source PNGs are in `app/src/main/res/drawable-*/ic_launcher_foreground.png`.
+
 ## Commands
 - `open camera`, `launch spotify`
 - `call mom`, `contact john`

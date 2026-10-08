@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color as AColor
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import android.speech.RecognitionListener
 import android.speech.RecognitionService
 import android.speech.RecognizerIntent
@@ -81,8 +83,20 @@ class AssistantActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(AColor.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(AColor.TRANSPARENT)
         )
+        // Full screen, including the camera cutout area
+        if (Build.VERSION.SDK_INT >= 28) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
+        // Frosted blur of whatever is behind the overlay (Android 12+ when the device allows it)
+        var blurOk = false
+        if (Build.VERSION.SDK_INT >= 31 && windowManager.isCrossWindowBlurEnabled) {
+            blurOk = true
+            window.setBackgroundBlurRadius((48 * resources.displayMetrics.density).toInt())
+        }
         setContent {
-            AssistantScreen(onClose = { finish(); overridePendingTransition(0, 0) })
+            AssistantScreen(blurOk = blurOk, onClose = { finish(); overridePendingTransition(0, 0) })
         }
     }
 }
@@ -180,7 +194,7 @@ private val Panel = Color(0xFF2C2C2E)
 enum class Mode { Idle, Listening, Thinking }
 
 @Composable
-fun AssistantScreen(onClose: () -> Unit) {
+fun AssistantScreen(blurOk: Boolean, onClose: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val entries = remember { mutableStateListOf<Msg>() }
@@ -258,24 +272,22 @@ fun AssistantScreen(onClose: () -> Unit) {
     val a = appear.value.coerceIn(0f, 1f)
 
     Box(Modifier.fillMaxSize()) {
-        // Scrim: tap outside to dismiss
-        Box(
-            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.40f * a))
-                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { close() }
-        )
         // Panel
         Box(
             Modifier.fillMaxSize()
                 .graphicsLayer {
-                    translationY = (1f - appear.value) * size.height * 0.35f
+                    translationY = (1f - appear.value) * size.height * 0.12f
                     alpha = a
-                    val s = 0.94f + 0.06f * a
-                    scaleX = s; scaleY = s
                 }
-                .clip(RoundedCornerShape(44.dp))
                 .background(
+                    // Translucent so the system blur shows through (more opaque when blur is unavailable)
                     Brush.verticalGradient(
-                        listOf(Color(0xFF232325), Color(0xFF0B0B0C), Color(0xFF0A0A0B), Color(0xFF1E1E20))
+                        listOf(
+                            Color(0xFF2A2A2E).copy(alpha = if (blurOk) 0.62f else 0.95f),
+                            Color(0xFF0B0B0C).copy(alpha = if (blurOk) 0.70f else 0.97f),
+                            Color(0xFF0A0A0B).copy(alpha = if (blurOk) 0.72f else 0.97f),
+                            Color(0xFF1E1E20).copy(alpha = if (blurOk) 0.66f else 0.95f)
+                        )
                     )
                 )
         ) {
