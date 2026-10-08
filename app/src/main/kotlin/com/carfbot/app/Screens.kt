@@ -103,6 +103,7 @@ fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
         val t = text.trim()
         if (t.isEmpty()) return
         screen = Screen.Chat
+        Haptics.tick(ctx)
         msgs.add(Msg(t, true))
         draft = ""
         val local = Actions.handle(ctx, t)

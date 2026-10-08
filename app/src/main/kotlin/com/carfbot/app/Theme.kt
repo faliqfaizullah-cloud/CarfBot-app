@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -54,9 +55,10 @@ fun T(
 
 @Composable
 fun GlassCircle(size: Dp = 52.dp, onClick: () -> Unit, content: @Composable () -> Unit) {
+    val ctx = LocalContext.current
     Box(
         Modifier.size(size).shadow(8.dp, CircleShape, ambientColor = Color(0x22000000), spotColor = Color(0x33B07A99))
-            .clip(CircleShape).background(Color.White.copy(alpha = 0.88f)).clickable(onClick = onClick),
+            .clip(CircleShape).background(Color.White.copy(alpha = 0.88f)).clickable { Haptics.tick(ctx); onClick() },
         contentAlignment = Alignment.Center
     ) { content() }
 }

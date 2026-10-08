@@ -13,6 +13,10 @@ AI chat assistant for Android. Type or speak a request and CarfBot opens the app
 ## Make it your default assistant
 Install the APK, open CarfBot, grant permissions, then tap the gear icon, then "Set CarfBot as default assistant" and choose CarfBot under *Digital assistant app*. Long-press Home or the power button to summon it.
 
+## Assistant overlay
+When CarfBot is the default assistant, holding the power button (or long-pressing Home) opens a dark "Listening" overlay with an animated orb, live transcript and a glowing edge animation. Haptics fire when it opens, when listening starts, when a reply arrives and when an app, contact, song or file is opened.
+On some phones you must also set the power button to open the assistant: Settings > Advanced features > Side key > Press and hold > Wake digital assistant (Samsung), or Settings > System > Gestures > Power menu (Pixel).
+
 ## Commands
 - `open camera`, `launch spotify`
 - `call mom`, `contact john`
@@ -25,4 +29,3 @@ Install the APK, open CarfBot, grant permissions, then tap the gear icon, then "
 - Fonts: uses the system sans font. Drop Inter in `res/font` and edit `Sans` in `Theme.kt` to change it.
 - Android hides documents (PDF, DOCX) from apps, so document requests open the system file picker when there's no direct match.
 - The release APK is signed with the debug key so it installs directly. Use your own keystore for Play Store.
-# CarfBot

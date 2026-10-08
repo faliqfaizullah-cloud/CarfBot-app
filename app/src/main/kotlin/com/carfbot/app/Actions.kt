@@ -14,6 +14,9 @@ import android.provider.MediaStore
 /** Local command engine: turns typed/spoken requests into real device actions. */
 object Actions {
 
+    /** True if the last handled command opened another app/screen. */
+    @Volatile var launched = false
+
     fun permissions(): Array<String> {
         val base = mutableListOf(Manifest.permission.READ_CONTACTS)
         if (Build.VERSION.SDK_INT >= 33) {
@@ -28,6 +31,7 @@ object Actions {
 
     /** Returns a reply if the request was handled on-device, or null to hand it to the AI. */
     fun handle(ctx: Context, input: String): String? {
+        launched = false
         val l = input.trim().replace(Regex("[.!?]+$"), "").lowercase()
         if (l.isEmpty()) return null
 
@@ -57,6 +61,8 @@ object Actions {
 
     private fun start(ctx: Context, intent: Intent): Boolean = try {
         ctx.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        launched = true
+        Haptics.confirm(ctx)
         true
     } catch (e: Exception) { false }
 

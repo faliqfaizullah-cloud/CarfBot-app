@@ -20,9 +20,8 @@ class CarfSessionService : VoiceInteractionSessionService() {
 class CarfSession(context: Context) : VoiceInteractionSession(context) {
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
-        val i = Intent(context, MainActivity::class.java)
+        val i = Intent(context, AssistantActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            .putExtra("listen", true)
         startAssistantActivity(i)
     }
 }
