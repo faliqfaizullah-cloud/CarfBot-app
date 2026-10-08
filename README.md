@@ -20,6 +20,9 @@ On some phones you must also set the power button to open the assistant: Setting
 ## Icon
 The launcher icon is a glowing blue ring on black (adaptive icon, with a monochrome version for themed icons). Source PNGs are in `app/src/main/res/drawable-*/ic_launcher_foreground.png`.
 
+## If the assistant overlay doesn't work
+Open CarfBot, tap the gear icon: it shows whether CarfBot is your default assistant, has a button to open the assistant settings, and a "Test assistant overlay" button to check the overlay without the power button. Voice needs the Google app (speech recognizer) and the microphone permission; typing always works.
+
 ## Commands
 - `open camera`, `launch spotify`
 - `call mom`, `contact john`

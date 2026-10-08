@@ -491,9 +491,18 @@ private fun SettingsDialog(onDismiss: () -> Unit) {
                 OutlinedTextField(value = key, onValueChange = { key = it }, singleLine = true,
                     placeholder = { T("sk-ant-…", 14, Pal.Blue) })
                 Spacer(Modifier.height(14.dp))
+                val isDefault = remember { Actions.isDefaultAssistant(ctx) }
+                T(
+                    if (isDefault) "✓ CarfBot is your default assistant" else "CarfBot is not your default assistant yet",
+                    14, if (isDefault) Pal.Slate else Pal.Blue
+                )
                 TextButton(onClick = { Actions.openAssistantSettings(ctx) }) {
                     T("Set CarfBot as default assistant", 15, Pal.Slate, FontWeight.Medium)
                 }
+                TextButton(onClick = {
+                    ctx.startActivity(Intent(ctx, AssistantActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    onDismiss()
+                }) { T("Test assistant overlay", 15, Pal.Slate, FontWeight.Medium) }
             }
         },
         confirmButton = {

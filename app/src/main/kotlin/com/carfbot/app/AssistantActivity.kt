@@ -77,6 +77,20 @@ import kotlin.math.sin
 
 /** The overlay that appears when CarfBot is the default assistant and the user holds the power button. */
 class AssistantActivity : ComponentActivity() {
+    private var ping by mutableIntStateOf(0)
+
+    /** Power button held again while the overlay is already open: restart listening. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        ping++
+    }
+
+    override fun onDestroy() {
+        try { CarfSession.current?.hide() } catch (e: Exception) { }
+        super.onDestroy()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -96,7 +110,7 @@ class AssistantActivity : ComponentActivity() {
             window.setBackgroundBlurRadius((48 * resources.displayMetrics.density).toInt())
         }
         setContent {
-            AssistantScreen(blurOk = blurOk, onClose = { finish(); overridePendingTransition(0, 0) })
+            AssistantScreen(blurOk = blurOk, ping = ping, onClose = { finish(); overridePendingTransition(0, 0) })
         }
     }
 }
@@ -109,52 +123,91 @@ class VoiceController(private val ctx: Context) {
     var onFinal: (String) -> Unit = {}
     var onError: (String) -> Unit = {}
     var onState: (Boolean) -> Unit = {}
+
     private var rec: SpeechRecognizer? = null
+    private var queue: ArrayDeque<ComponentName?> = ArrayDeque()
+    private var session = 0
 
     /**
      * When CarfBot is the default assistant, Android makes CarfBot's own (stub) recognition service the
-     * system default. So we explicitly pick another installed recognizer, preferring Google's.
+     * system default. So we try the other installed recognizers one by one (Google first), and the
+     * system default last.
      */
-    private fun pickService(): ComponentName? {
-        val all = ctx.packageManager
-            .queryIntentServices(Intent(RecognitionService.SERVICE_INTERFACE), 0)
-            .filter { it.serviceInfo.packageName != ctx.packageName }
-        val s = all.firstOrNull { it.serviceInfo.packageName.contains("google") } ?: all.firstOrNull()
-        return s?.let { ComponentName(it.serviceInfo.packageName, it.serviceInfo.name) }
+    private fun candidates(): List<ComponentName?> {
+        val others = try {
+            ctx.packageManager.queryIntentServices(Intent(RecognitionService.SERVICE_INTERFACE), 0)
+                .map { it.serviceInfo }
+                .filter { it.packageName != ctx.packageName }
+                .sortedBy {
+                    when {
+                        it.packageName == "com.google.android.googlequicksearchbox" -> 0
+                        it.packageName.contains("google") -> 1
+                        else -> 2
+                    }
+                }
+                .map { ComponentName(it.packageName, it.name) }
+        } catch (e: Exception) { emptyList() }
+        return others + listOf<ComponentName?>(null)
+    }
+
+    private fun message(error: Int): String = when (error) {
+        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
+            "I didn’t catch that. Tap the mic to try again."
+        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
+            "Allow microphone access to talk to me. You can still type."
+        SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
+            "Voice recognition needs an internet connection. You can still type."
+        SpeechRecognizer.ERROR_AUDIO ->
+            "I couldn’t use the microphone. Close other apps that use it and try again."
+        else -> "Voice input isn’t working (code $error). Make sure the Google app is installed, or type instead."
     }
 
     fun start() {
         cancel()
+        queue = ArrayDeque(candidates())
+        next()
+    }
+
+    private fun next() {
+        if (queue.isEmpty()) {
+            finishState()
+            onError("Voice input isn’t available on this device. You can type instead.")
+            return
+        }
+        val comp = queue.removeFirst()
+        val my = ++session
         try {
-            val comp = pickService()
             val r = if (comp != null) SpeechRecognizer.createSpeechRecognizer(ctx, comp)
             else SpeechRecognizer.createSpeechRecognizer(ctx)
             r.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {}
                 override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) { onLevel(((rmsdB + 2f) / 12f).coerceIn(0f, 1f)) }
+                override fun onRmsChanged(rmsdB: Float) {
+                    if (my == session) this@VoiceController.onLevel(((rmsdB + 2f) / 12f).coerceIn(0f, 1f))
+                }
                 override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() { onLevel(0f) }
+                override fun onEndOfSpeech() { if (my == session) this@VoiceController.onLevel(0f) }
                 override fun onError(error: Int) {
-                    release()
-                    onError(
-                        when (error) {
-                            SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
-                                "I didn’t catch that. Tap the mic to try again."
-                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
-                                "Allow microphone access to talk to me. You can still type."
-                            else -> "Voice input failed (code $error). You can type instead."
-                        }
-                    )
+                    if (my != session) return
+                    destroyQuiet()
+                    // client / server / busy / too many requests / disconnected: try the next recognizer
+                    val retry = error == 5 || error == 4 || error == 8 || error == 10 || error == 11
+                    if (retry && queue.isNotEmpty()) { next(); return }
+                    finishState()
+                    this@VoiceController.onError(message(error))
                 }
                 override fun onResults(results: Bundle?) {
-                    release()
+                    if (my != session) return
+                    destroyQuiet()
+                    finishState()
                     val t = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                    if (t.isNullOrBlank()) onError("I didn’t catch that. Tap the mic to try again.") else onFinal(t)
+                    if (t.isNullOrBlank()) this@VoiceController.onError(message(SpeechRecognizer.ERROR_NO_MATCH))
+                    else this@VoiceController.onFinal(t)
                 }
                 override fun onPartialResults(partialResults: Bundle?) {
+                    if (my != session) return
                     partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                        ?.let { onPartial(it) }
+                        ?.let { this@VoiceController.onPartial(it) }
                 }
                 override fun onEvent(eventType: Int, params: Bundle?) {}
             })
@@ -167,8 +220,8 @@ class VoiceController(private val ctx: Context) {
             Haptics.tick(ctx)
             onState(true)
         } catch (e: Exception) {
-            onState(false)
-            onError("Voice input isn’t available on this device. You can type instead.")
+            destroyQuiet()
+            next()
         }
     }
 
@@ -176,11 +229,19 @@ class VoiceController(private val ctx: Context) {
     fun finish() { try { rec?.stopListening() } catch (e: Exception) { } }
 
     /** Drop everything without a result. */
-    fun cancel() { release() }
+    fun cancel() {
+        session++
+        queue.clear()
+        destroyQuiet()
+        finishState()
+    }
 
-    private fun release() {
+    private fun destroyQuiet() {
         try { rec?.destroy() } catch (e: Exception) { }
         rec = null
+    }
+
+    private fun finishState() {
         onLevel(0f)
         onState(false)
     }
@@ -194,7 +255,7 @@ private val Panel = Color(0xFF2C2C2E)
 enum class Mode { Idle, Listening, Thinking }
 
 @Composable
-fun AssistantScreen(blurOk: Boolean, onClose: () -> Unit) {
+fun AssistantScreen(blurOk: Boolean, ping: Int, onClose: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val entries = remember { mutableStateListOf<Msg>() }
@@ -260,6 +321,13 @@ fun AssistantScreen(blurOk: Boolean, onClose: () -> Unit) {
         launch { appear.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow)) }
         delay(320)
         if (hasMic()) startListening() else permLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    LaunchedEffect(ping) {
+        if (ping > 0) {
+            Haptics.summon(ctx)
+            if (hasMic()) startListening() else permLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
     }
 
     BackHandler { close() }

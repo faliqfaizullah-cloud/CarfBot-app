@@ -1,4 +1,4 @@
 <resources>
     <color name="cream">#FFFBF4F2</color>
-    <color name="icon_bg">#FF000000</color>
+    <color name="icon_bg">#FFFFFFFF</color>
 </resources>

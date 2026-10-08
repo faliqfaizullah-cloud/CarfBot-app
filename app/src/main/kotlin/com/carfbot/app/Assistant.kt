@@ -16,17 +16,32 @@ class CarfSessionService : VoiceInteractionSessionService() {
     override fun onNewSession(args: Bundle?): VoiceInteractionSession = CarfSession(this)
 }
 
-/** Fires when the user long-presses Home / power button / says the assist gesture. */
+/** Fires when the user holds the power button / long-presses Home. */
 class CarfSession(context: Context) : VoiceInteractionSession(context) {
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
+        current = this
         val i = Intent(context, AssistantActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        startAssistantActivity(i)
+        try {
+            startAssistantActivity(i)
+        } catch (e: Exception) {
+            try { context.startActivity(i) } catch (e2: Exception) { hide() }
+        }
+    }
+
+    override fun onDestroy() {
+        if (current === this) current = null
+        super.onDestroy()
+    }
+
+    companion object {
+        /** The overlay calls hide() on this when it closes so the next power-button hold works. */
+        @Volatile var current: CarfSession? = null
     }
 }
 
-/** Required by the assistant framework; real speech capture uses the system recognizer. */
+/** Required by the assistant framework; real speech capture happens in the overlay (VoiceController). */
 class CarfRecognitionService : RecognitionService() {
     override fun onStartListening(recognizerIntent: Intent?, listener: Callback?) {
         listener?.error(SpeechRecognizer.ERROR_CLIENT)

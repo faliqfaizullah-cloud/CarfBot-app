@@ -202,6 +202,14 @@ object Actions {
         return "Searching the web for \"$q\""
     }
 
+    /** True when CarfBot is the selected digital assistant. */
+    fun isDefaultAssistant(ctx: Context): Boolean = try {
+        val cr = ctx.contentResolver
+        listOf("voice_interaction_service", "assistant").any {
+            android.provider.Settings.Secure.getString(cr, it)?.startsWith(ctx.packageName + "/") == true
+        }
+    } catch (e: Exception) { false }
+
     fun openAssistantSettings(ctx: Context) {
         val options = listOf(
             Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS),
