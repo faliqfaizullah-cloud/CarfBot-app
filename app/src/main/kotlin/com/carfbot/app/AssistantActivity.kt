@@ -338,6 +338,7 @@ fun AssistantScreen(blurOk: Boolean, ping: Int, onClose: () -> Unit) {
     }
     val atEnd by remember { derivedStateOf { !listState.canScrollForward } }
     val a = appear.value.coerceIn(0f, 1f)
+    val greeting = entries.isEmpty() && partial.isEmpty()
 
     Box(Modifier.fillMaxSize()) {
         // Panel
@@ -379,6 +380,14 @@ fun AssistantScreen(blurOk: Boolean, ping: Int, onClose: () -> Unit) {
                         voice.cancel(); entries.clear(); partial = ""; mode = Mode.Idle
                     }) { Icon(Icons.Filled.Edit, null, tint = Color.White, modifier = Modifier.size(21.dp)) }
                 }
+                if (greeting) {
+                    GreetingSection(
+                        listening = mode == Mode.Listening, thinking = mode == Mode.Thinking, level = level,
+                        onMic = { toggleMic() },
+                        onFiles = { draft = "find file " },
+                        onCamera = { send("open camera") }
+                    )
+                } else {
                 Spacer(Modifier.height(34.dp))
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Orb(level, mode) }
                 Spacer(Modifier.height(56.dp))
@@ -409,6 +418,7 @@ fun AssistantScreen(blurOk: Boolean, ping: Int, onClose: () -> Unit) {
                             scope.launch { listState.animateScrollToItem(max(0, listState.layoutInfo.totalItemsCount - 1)) }
                         }) { Icon(Icons.Filled.ArrowDownward, null, tint = Color.White, modifier = Modifier.size(20.dp)) }
                     }
+                }
                 }
                 Row(
                     Modifier.fillMaxWidth().height(60.dp).clip(CircleShape).background(Panel.copy(alpha = 0.85f))
