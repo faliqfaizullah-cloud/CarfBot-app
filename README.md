@@ -26,6 +26,13 @@ The launcher icon is a glowing blue ring on black (adaptive icon, with a monochr
 ## If the assistant overlay doesn't work
 Open CarfBot, tap the gear icon: it shows whether CarfBot is your default assistant, has a button to open the assistant settings, and a "Test assistant overlay" button to check the overlay without the power button. Voice needs the Google app (speech recognizer) and the microphone permission; typing always works.
 
+## Smart features
+- Home pills and cards change with the time of day (morning: music, calendar, weather; afternoon: camera, maps, mail; evening: reading, notes, alarm). Swipe a card left or right to dismiss it, or tap its action buttons to run a command.
+- Music: "pause", "play", "next song", "previous song" work with any music app. "What's playing" and "lyrics" (for the current song) need notification access (gear icon). "Identify song" uses Google Sound Search or Shazam if installed. Lyrics open in your browser.
+- Clipboard: "summarize clipboard", "translate clipboard to Spanish", "organize clipboard", "what's on my clipboard" (CarfBot must be on screen). Screenshots: "summarize my screenshot", "extract text from my screenshot" (copies the text).
+- Chaining: "open camera, take a photo and share it on WhatsApp". The camera needs you to press the shutter, and the share sheet needs you to pick the contact.
+- Triggers: power-button hold, the corner swipe (turn on "Swipe from corners" in your phone's default assistant settings), and the experimental double-tap on the back (gear icon).
+
 ## Commands
 - `open camera`, `launch spotify`
 - `call mom`, `contact john`

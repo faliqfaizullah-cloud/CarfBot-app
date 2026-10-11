@@ -269,20 +269,22 @@ fun AssistantScreen(blurOk: Boolean, ping: Int, onClose: () -> Unit) {
 
     fun close() { scope.launch { appear.animateTo(0f, tween(260)); onClose() } }
 
+    val capture = rememberPhotoCapture()
+
     fun send(text: String) {
         val t = text.trim()
         if (t.isEmpty()) return
         partial = ""; draft = ""
         Haptics.tick(ctx)
         entries.add(Msg(t, true))
-        val local = Actions.handle(ctx, t)
-        if (local != null) {
-            entries.add(Msg(local, false))
-            mode = Mode.Idle
-            if (Actions.launched) scope.launch { delay(900); close() } else Haptics.click(ctx)
-        } else {
-            mode = Mode.Thinking
-            scope.launch {
+        mode = Mode.Thinking
+        scope.launch {
+            val reply = Router.execute(ctx, t, capture)
+            if (reply != null) {
+                entries.add(Msg(reply, false))
+                mode = Mode.Idle
+                if (Actions.launched) { delay(900); close() } else Haptics.click(ctx)
+            } else {
                 entries.add(Msg(AiClient.ask(ctx, t), false))
                 mode = Mode.Idle
                 Haptics.click(ctx)

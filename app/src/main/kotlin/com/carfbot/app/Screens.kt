@@ -33,6 +33,18 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -70,18 +82,13 @@ import kotlin.math.sin
 
 data class Msg(val text: String, val fromUser: Boolean)
 enum class Screen { Home, Chat }
-data class Tip(val title: String, val sub: String, val heading: String, val body: String, val command: String)
-
-val tips = listOf(
-    Tip("Open any app", "Today, 9:41 AM", "Today’s command",
-        "Say “open camera” and CarfBot launches it for you, no hunting through your app drawer.", "open camera"),
-    Tip("Call a contact", "Contacts", "Reach anyone",
-        "Say “call Mom” and I’ll find her in your contacts and get the dialer ready.", "call mom"),
-    Tip("Play a song", "Music", "Your soundtrack",
-        "Say “play Blinding Lights” and I’ll play it from your phone or your music app.", "play blinding lights"),
-    Tip("Find a file", "Files", "Find it fast",
-        "Say “find photo beach” or “find document invoice” and I’ll open the match.", "find photo beach")
+data class Tip(
+    val title: String, val sub: String, val heading: String, val body: String, val command: String,
+    val actions: List<Pair<String, String>> = emptyList()
 )
+
+/** Changes with the time of day. */
+val tips: List<Tip> get() = Ctx.tips()
 
 @Composable
 fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
@@ -99,6 +106,8 @@ fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
     val perms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
     LaunchedEffect(Unit) { perms.launch(Actions.permissions()) }
 
+    val capture = rememberPhotoCapture()
+
     fun send(text: String) {
         val t = text.trim()
         if (t.isEmpty()) return
@@ -106,16 +115,16 @@ fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
         Haptics.tick(ctx)
         msgs.add(Msg(t, true))
         draft = ""
-        val local = Actions.handle(ctx, t)
-        if (local != null) {
-            actions++
-            msgs.add(Msg(local, false))
-        } else {
-            thinking = true
-            scope.launch {
+        thinking = true
+        scope.launch {
+            val reply = Router.execute(ctx, t, capture)
+            if (reply != null) {
+                actions++
+                msgs.add(Msg(reply, false))
+            } else {
                 msgs.add(Msg(AiClient.ask(ctx, t), false))
-                thinking = false
             }
+            thinking = false
         }
     }
 
@@ -149,8 +158,9 @@ fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
             onPrev = { tip = (tip + tips.size - 1) % tips.size },
             onNext = { tip = (tip + 1) % tips.size },
             onChip = { draft = it; screen = Screen.Chat },
-            onTip = { draft = tips[tip].command; screen = Screen.Chat },
+            onTip = { draft = tips[tip % tips.size].command; screen = Screen.Chat },
             onAsk = { screen = Screen.Chat },
+            onRun = { send(it) },
             counts = Triple(0, msgs.size, actions)
         )
         Screen.Chat -> ChatScreen(
@@ -169,7 +179,7 @@ fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
 @Composable
 fun HomeScreen(
     tip: Int, onPrev: () -> Unit, onNext: () -> Unit, onChip: (String) -> Unit,
-    onTip: () -> Unit, onAsk: () -> Unit, counts: Triple<Int, Int, Int>
+    onTip: () -> Unit, onAsk: () -> Unit, onRun: (String) -> Unit, counts: Triple<Int, Int, Int>
 ) {
     Box(
         Modifier.fillMaxSize().background(
@@ -189,16 +199,17 @@ fun HomeScreen(
             }
             Spacer(Modifier.height(20.dp))
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Chip(Icons.Outlined.Apps, "Apps") { onChip("open ") }
-                Chip(Icons.Outlined.Description, "Files") { onChip("find file ") }
-                Chip(Icons.Outlined.MusicNote, "Songs") { onChip("play ") }
-                Chip(Icons.Outlined.Person, "Contacts") { onChip("call ") }
+                Ctx.pills().forEach { p ->
+                    Chip(p.icon, p.label) { if (p.run) onRun(p.command) else onChip(p.command) }
+                }
             }
             Spacer(Modifier.height(26.dp))
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 BackCard(top = 0.dp, hPad = 44.dp, alpha = 0.5f)
                 BackCard(top = 24.dp, hPad = 22.dp, alpha = 0.75f)
-                FrontCard(tips[tip], counts, onTip, Modifier.padding(top = 52.dp, bottom = 0.dp))
+                SwipeCard(key = tip, onDismiss = onNext, modifier = Modifier.padding(top = 52.dp)) {
+                    FrontCard(tips[tip % tips.size], counts, onTip, onRun, Modifier)
+                }
             }
             Row(
                 Modifier.fillMaxWidth().offset(y = (-28).dp).zIndex(2f),
@@ -245,7 +256,9 @@ private fun BackCard(top: Dp, hPad: Dp, alpha: Float) {
 }
 
 @Composable
-private fun FrontCard(t: Tip, counts: Triple<Int, Int, Int>, onClick: () -> Unit, modifier: Modifier) {
+private fun FrontCard(
+    t: Tip, counts: Triple<Int, Int, Int>, onClick: () -> Unit, onRun: (String) -> Unit, modifier: Modifier
+) {
     Column(
         modifier.fillMaxSize().shadow(14.dp, RoundedCornerShape(32.dp), spotColor = Color(0x33B07A99))
             .clip(RoundedCornerShape(32.dp)).background(Pal.CardGrey).clickable(onClick = onClick)
@@ -268,6 +281,10 @@ private fun FrontCard(t: Tip, counts: Triple<Int, Int, Int>, onClick: () -> Unit
         T(t.heading, 25, Pal.Slate, FontWeight.SemiBold)
         Spacer(Modifier.height(8.dp))
         T(t.body, 17, Pal.Blue, maxLines = 3, lineHeight = 23)
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            t.actions.take(2).forEach { (label, cmd) -> ActionPill(label) { onRun(cmd) } }
+        }
         Box(Modifier.weight(1f).fillMaxWidth()) { Flower(Modifier.fillMaxSize(), blurDp = 16.dp) }
         Row(Modifier.padding(bottom = 30.dp), verticalAlignment = Alignment.CenterVertically) {
             FooterStat(Icons.Outlined.FavoriteBorder, counts.first)
@@ -485,7 +502,7 @@ private fun SettingsDialog(onDismiss: () -> Unit) {
         containerColor = Pal.Cream,
         title = { T("CarfBot settings", 20, Pal.Slate, FontWeight.SemiBold) },
         text = {
-            Column {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 T("Anthropic API key (for AI chat)", 14, Pal.Blue)
                 Spacer(Modifier.height(6.dp))
                 OutlinedTextField(value = key, onValueChange = { key = it }, singleLine = true,
@@ -503,6 +520,17 @@ private fun SettingsDialog(onDismiss: () -> Unit) {
                     ctx.startActivity(Intent(ctx, AssistantActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     onDismiss()
                 }) { T("Test assistant overlay", 15, Pal.Slate, FontWeight.Medium) }
+                TextButton(onClick = {
+                    Actions.launch(ctx, Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                }) { T("Allow media info (notification access)", 15, Pal.Slate, FontWeight.Medium) }
+                var backTap by remember { mutableStateOf(Prefs.backTap(ctx)) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        T("Double-tap back to summon", 15, Pal.Slate, FontWeight.Medium)
+                        T("Experimental. Needs CarfBot as default assistant.", 12, Pal.Blue)
+                    }
+                    Switch(checked = backTap, onCheckedChange = { backTap = it; Prefs.setBackTap(ctx, it) })
+                }
             }
         },
         confirmButton = {
@@ -510,4 +538,57 @@ private fun SettingsDialog(onDismiss: () -> Unit) {
         },
         dismissButton = { TextButton(onClick = onDismiss) { T("Cancel", 16, Pal.Blue) } }
     )
+}
+
+
+// ───────────────────────── Swipeable intent card ─────────────────────────
+
+@Composable
+private fun ActionPill(label: String, onClick: () -> Unit) {
+    val ctx = LocalContext.current
+    Box(
+        Modifier.clip(CircleShape).background(Pal.Pill)
+            .clickable { Haptics.tick(ctx); onClick() }
+            .padding(horizontal = 16.dp, vertical = 9.dp)
+    ) { T(label, 14, Pal.Slate, FontWeight.Medium) }
+}
+
+/** Drag left or right to dismiss; the next card takes its place. */
+@Composable
+private fun SwipeCard(key: Int, onDismiss: () -> Unit, modifier: Modifier, content: @Composable () -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val dragX = remember { Animatable(0f) }
+    var width by remember { mutableIntStateOf(1) }
+    Box(
+        modifier.fillMaxSize()
+            .onSizeChanged { width = it.width }
+            .offset { IntOffset(dragX.value.roundToInt(), 0) }
+            .graphicsLayer {
+                rotationZ = dragX.value / 40f
+                alpha = (1f - abs(dragX.value) / (width * 1.1f)).coerceIn(0f, 1f)
+            }
+            .pointerInput(key) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        scope.launch {
+                            if (abs(dragX.value) > width * 0.3f) {
+                                Haptics.tick(ctx)
+                                val dir = if (dragX.value > 0) 1f else -1f
+                                dragX.animateTo(dir * width * 1.3f, tween(180))
+                                onDismiss()
+                                dragX.snapTo(0f)
+                            } else {
+                                dragX.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMedium))
+                            }
+                        }
+                    },
+                    onDragCancel = { scope.launch { dragX.animateTo(0f) } },
+                    onHorizontalDrag = { change, amount ->
+                        change.consume()
+                        scope.launch { dragX.snapTo(dragX.value + amount) }
+                    }
+                )
+            }
+    ) { content() }
 }

@@ -77,10 +77,29 @@ object Actions {
         } else Manifest.permission.READ_EXTERNAL_STORAGE
 
     // ---------- Apps ----------
-    private fun openApp(ctx: Context, name: String): String {
+    private val categoryAliases = mapOf(
+        "calendar" to Intent.CATEGORY_APP_CALENDAR, "gallery" to Intent.CATEGORY_APP_GALLERY,
+        "photos" to Intent.CATEGORY_APP_GALLERY, "music" to Intent.CATEGORY_APP_MUSIC,
+        "email" to Intent.CATEGORY_APP_EMAIL, "mail" to Intent.CATEGORY_APP_EMAIL,
+        "messages" to Intent.CATEGORY_APP_MESSAGING, "browser" to Intent.CATEGORY_APP_BROWSER,
+        "maps" to Intent.CATEGORY_APP_MAPS, "map" to Intent.CATEGORY_APP_MAPS,
+        "calculator" to Intent.CATEGORY_APP_CALCULATOR, "contacts" to Intent.CATEGORY_APP_CONTACTS
+    )
+
+    /** Public so other modules (macros, music ID) can reuse it. */
+    fun launch(ctx: Context, intent: Intent): Boolean = start(ctx, intent)
+
+    fun openApp(ctx: Context, name: String): String {
+        val q = name.trim().removePrefix("the ").trim()
+        val title = q.replaceFirstChar { it.uppercase() }
+        if (q == "camera" && start(ctx, Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA))) return "Opening Camera"
+        if ((q == "alarm" || q == "alarms" || q == "clock") &&
+            start(ctx, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))) return "Opening Alarms"
+        categoryAliases[q]?.let { cat ->
+            if (start(ctx, Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, cat))) return "Opening $title"
+        }
         val pm = ctx.packageManager
         val main = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val q = name.trim()
         val best = pm.queryIntentActivities(main, 0)
             .map { it to it.loadLabel(pm).toString().lowercase() }
             .filter { (_, label) -> label.contains(q) || (label.length >= 3 && q.contains(label)) }
