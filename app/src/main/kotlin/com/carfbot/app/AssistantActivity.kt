@@ -61,6 +61,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -255,17 +257,32 @@ private val Panel = Color(0xFF2C2C2E)
 enum class Mode { Idle, Listening, Thinking }
 
 @Composable
-fun AssistantScreen(blurOk: Boolean, ping: Int, onClose: () -> Unit) {
+fun AssistantScreen(
+    blurOk: Boolean, ping: Int, onClose: () -> Unit,
+    embedded: Boolean = false, initialDraft: String = "", autoListen: Boolean = true,
+    autoRun: String? = null, onMenu: (() -> Unit)? = null
+) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val entries = remember { mutableStateListOf<Msg>() }
     var partial by remember { mutableStateOf("") }
     var level by remember { mutableFloatStateOf(0f) }
     var mode by remember { mutableStateOf(Mode.Idle) }
-    var draft by remember { mutableStateOf("") }
+    var draft by remember { mutableStateOf(initialDraft) }
     val appear = remember { Animatable(0f) }
     val listState = rememberLazyListState()
     val voice = remember { VoiceController(ctx) }
+
+    if (embedded) {
+        val view = LocalView.current
+        DisposableEffect(Unit) {
+            val window = (view.context as? android.app.Activity)?.window
+            val ctl = if (window != null) WindowCompat.getInsetsController(window, view) else null
+            val old = ctl?.isAppearanceLightStatusBars ?: true
+            ctl?.isAppearanceLightStatusBars = false
+            onDispose { ctl?.isAppearanceLightStatusBars = old }
+        }
+    }
 
     fun close() { scope.launch { appear.animateTo(0f, tween(260)); onClose() } }
 
@@ -283,7 +300,7 @@ fun AssistantScreen(blurOk: Boolean, ping: Int, onClose: () -> Unit) {
             if (reply != null) {
                 entries.add(Msg(reply, false))
                 mode = Mode.Idle
-                if (Actions.launched) { delay(900); close() } else Haptics.click(ctx)
+                if (Actions.launched && !embedded) { delay(900); close() } else Haptics.click(ctx)
             } else {
                 entries.add(Msg(AiClient.ask(ctx, t), false))
                 mode = Mode.Idle
@@ -291,6 +308,8 @@ fun AssistantScreen(blurOk: Boolean, ping: Int, onClose: () -> Unit) {
             }
         }
     }
+
+    LaunchedEffect(Unit) { autoRun?.let { delay(350); send(it) } }
 
     DisposableEffect(Unit) {
         voice.onLevel = { level = it }
@@ -319,10 +338,12 @@ fun AssistantScreen(blurOk: Boolean, ping: Int, onClose: () -> Unit) {
     }
 
     LaunchedEffect(Unit) {
-        Haptics.summon(ctx)
+        if (!embedded) Haptics.summon(ctx)
         launch { appear.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow)) }
-        delay(320)
-        if (hasMic()) startListening() else permLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        if (autoListen) {
+            delay(320)
+            if (hasMic()) startListening() else permLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
     }
 
     LaunchedEffect(ping) {
@@ -354,10 +375,10 @@ fun AssistantScreen(blurOk: Boolean, ping: Int, onClose: () -> Unit) {
                     // Translucent so the system blur shows through (more opaque when blur is unavailable)
                     Brush.verticalGradient(
                         listOf(
-                            Color(0xFF2A2A2E).copy(alpha = if (blurOk) 0.62f else 0.95f),
-                            Color(0xFF0B0B0C).copy(alpha = if (blurOk) 0.70f else 0.97f),
-                            Color(0xFF0A0A0B).copy(alpha = if (blurOk) 0.72f else 0.97f),
-                            Color(0xFF1E1E20).copy(alpha = if (blurOk) 0.66f else 0.95f)
+                            Color(0xFF2A2A2E).copy(alpha = if (blurOk) 0.62f else if (embedded) 1f else 0.95f),
+                            Color(0xFF0B0B0C).copy(alpha = if (blurOk) 0.70f else if (embedded) 1f else 0.97f),
+                            Color(0xFF0A0A0B).copy(alpha = if (blurOk) 0.72f else if (embedded) 1f else 0.97f),
+                            Color(0xFF1E1E20).copy(alpha = if (blurOk) 0.66f else if (embedded) 1f else 0.95f)
                         )
                     )
                 )
@@ -369,8 +390,10 @@ fun AssistantScreen(blurOk: Boolean, ping: Int, onClose: () -> Unit) {
                 Spacer(Modifier.height(10.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     DarkCircle(50.dp, {
-                        ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        close()
+                        if (onMenu != null) onMenu() else {
+                            ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            close()
+                        }
                     }) { Icon(Icons.Filled.Menu, null, tint = Color.White, modifier = Modifier.size(22.dp)) }
                     T(
                         when (mode) {
@@ -382,46 +405,17 @@ fun AssistantScreen(blurOk: Boolean, ping: Int, onClose: () -> Unit) {
                         voice.cancel(); entries.clear(); partial = ""; mode = Mode.Idle
                     }) { Icon(Icons.Filled.Edit, null, tint = Color.White, modifier = Modifier.size(21.dp)) }
                 }
-                if (greeting) {
-                    GreetingSection(
-                        listening = mode == Mode.Listening, thinking = mode == Mode.Thinking, level = level,
-                        onMic = { toggleMic() },
-                        onFiles = { draft = "find file " },
-                        onCamera = { send("open camera") }
-                    )
-                } else {
-                Spacer(Modifier.height(34.dp))
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Orb(level, mode) }
-                Spacer(Modifier.height(56.dp))
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    DarkCircle(48.dp, { close() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                GlassSection(
+                    entries = entries, partial = partial,
+                    listening = mode == Mode.Listening, thinking = mode == Mode.Thinking,
+                    level = level, listState = listState, atEnd = atEnd,
+                    onMic = { toggleMic() },
+                    onFiles = { draft = "find file " },
+                    onCamera = { send("open camera") },
+                    onScrollDown = {
+                        scope.launch { listState.animateScrollToItem(max(0, listState.layoutInfo.totalItemsCount - 1)) }
                     }
-                    Spacer(Modifier.width(14.dp))
-                    T("Conversation", 19, Color.White, FontWeight.Medium)
-                }
-                Spacer(Modifier.height(20.dp))
-                LazyColumn(
-                    state = listState, modifier = Modifier.weight(1f).fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(18.dp)
-                ) {
-                    if (entries.isEmpty() && partial.isEmpty()) {
-                        item {
-                            T("Try “open camera”, “call Mom”, “play a song” or “find photo beach”.",
-                                17, Gray, lineHeight = 24)
-                        }
-                    }
-                    items(entries) { TranscriptItem(it.fromUser, it.text) }
-                    if (partial.isNotEmpty()) item { TranscriptItem(true, partial) }
-                }
-                Box(Modifier.fillMaxWidth().height(64.dp), contentAlignment = Alignment.Center) {
-                    if (!atEnd) {
-                        DarkCircle(46.dp, {
-                            scope.launch { listState.animateScrollToItem(max(0, listState.layoutInfo.totalItemsCount - 1)) }
-                        }) { Icon(Icons.Filled.ArrowDownward, null, tint = Color.White, modifier = Modifier.size(20.dp)) }
-                    }
-                }
-                }
+                )
                 Row(
                     Modifier.fillMaxWidth().height(60.dp).clip(CircleShape).background(Panel.copy(alpha = 0.85f))
                         .padding(start = 24.dp, end = 18.dp),

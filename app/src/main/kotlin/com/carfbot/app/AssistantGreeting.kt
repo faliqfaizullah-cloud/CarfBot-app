@@ -21,11 +21,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.outlined.NoteAdd
 import androidx.compose.material.icons.outlined.Videocam
@@ -59,22 +63,30 @@ import androidx.compose.ui.unit.sp
 import java.util.Calendar
 
 private val Gold = Color(0xFFE6CB8E)
+private val GreyText = Color(0xFF8A8A8E)
 
-/** Greeting state of the assistant overlay: glass card + three glass orbs with a golden centre. */
+/** The assistant UI: a frosted glass card (greeting or conversation) with three glass orbs under it. */
 @Composable
-fun ColumnScope.GreetingSection(
-    listening: Boolean, thinking: Boolean, level: Float,
-    onMic: () -> Unit, onFiles: () -> Unit, onCamera: () -> Unit
+fun ColumnScope.GlassSection(
+    entries: List<Msg>, partial: String, listening: Boolean, thinking: Boolean, level: Float,
+    listState: LazyListState, atEnd: Boolean,
+    onMic: () -> Unit, onFiles: () -> Unit, onCamera: () -> Unit, onScrollDown: () -> Unit
 ) {
     Spacer(Modifier.height(18.dp))
-    GreetingCard(listening, thinking, Modifier.weight(1f).fillMaxWidth())
+    GlassCard(
+        entries, partial, listening, thinking, listState, atEnd, onScrollDown,
+        Modifier.weight(1f).fillMaxWidth()
+    )
     Spacer(Modifier.height(8.dp))
     OrbRow(listening, level, onMic, onFiles, onCamera)
     Spacer(Modifier.height(10.dp))
 }
 
 @Composable
-private fun GreetingCard(listening: Boolean, thinking: Boolean, modifier: Modifier) {
+private fun GlassCard(
+    entries: List<Msg>, partial: String, listening: Boolean, thinking: Boolean,
+    listState: LazyListState, atEnd: Boolean, onScrollDown: () -> Unit, modifier: Modifier
+) {
     val hour = remember { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
     val hello = when {
         hour < 12 -> "Good morning"
@@ -86,6 +98,7 @@ private fun GreetingCard(listening: Boolean, thinking: Boolean, modifier: Modifi
         thinking -> "Thinking…"
         else -> "Tap the mic to talk"
     }
+    val conversation = entries.isNotEmpty() || partial.isNotEmpty()
     val shape = RoundedCornerShape(36.dp)
     Column(
         modifier.clip(shape)
@@ -93,41 +106,80 @@ private fun GreetingCard(listening: Boolean, thinking: Boolean, modifier: Modifi
             .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.28f), Color.White.copy(alpha = 0.05f))), shape)
             .padding(horizontal = 26.dp, vertical = 26.dp)
     ) {
-        Text(
-            buildAnnotatedString {
-                withStyle(SpanStyle(color = Color.White)) { append("Let’s ") }
-                withStyle(SpanStyle(color = Gold)) { append("get started") }
-            },
-            style = TextStyle(fontFamily = Sans, fontSize = 19.sp, letterSpacing = (-0.3).sp)
-        )
-        Spacer(Modifier.height(20.dp))
-        val text = buildAnnotatedString {
-            withStyle(SpanStyle(color = Color.White)) {
-                append("$hello,\nI’m ")
-                appendInlineContent("avatar", "[c]")
-                append(" CarfBot, your personal assistant. So tell me, ")
+        if (conversation) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                LazyColumn(
+                    state = listState, modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    items(entries) { Line(it.fromUser, it.text) }
+                    if (partial.isNotEmpty()) item { Line(true, partial) }
+                }
+                if (!atEnd) {
+                    Box(Modifier.align(Alignment.BottomEnd)) {
+                        GlassOrb(44.dp, onScrollDown) {
+                            Icon(Icons.Filled.ArrowDownward, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
             }
-            withStyle(SpanStyle(color = Color(0xFF8A8A8E))) { append("What can I help you with today?") }
+        } else {
+            Text(
+                buildAnnotatedString {
+                    withStyle(SpanStyle(color = Color.White)) { append("Let’s ") }
+                    withStyle(SpanStyle(color = Gold)) { append("get started") }
+                },
+                style = TextStyle(fontFamily = Sans, fontSize = 19.sp, letterSpacing = (-0.3).sp)
+            )
+            Spacer(Modifier.height(20.dp))
+            val text = buildAnnotatedString {
+                withStyle(SpanStyle(color = Color.White)) {
+                    append("$hello,\nI’m ")
+                    appendInlineContent("avatar", "[c]")
+                    append(" CarfBot, your personal assistant. So tell me, ")
+                }
+                withStyle(SpanStyle(color = GreyText)) { append("What can I help you with today?") }
+            }
+            val inline = mapOf(
+                "avatar" to InlineTextContent(
+                    Placeholder(58.sp, 34.sp, PlaceholderVerticalAlign.TextCenter)
+                ) {
+                    Box(
+                        Modifier.fillMaxSize().clip(RoundedCornerShape(17.dp))
+                            .background(Brush.linearGradient(listOf(Color(0xFFF2A3BB), Color(0xFF9B7BE0)))),
+                        contentAlignment = Alignment.Center
+                    ) { Text("C", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, fontFamily = Sans) }
+                }
+            )
+            Text(
+                text, inlineContent = inline,
+                style = TextStyle(fontFamily = Sans, fontSize = 28.sp, lineHeight = 36.sp, letterSpacing = (-0.8).sp)
+            )
+            Spacer(Modifier.weight(1f))
         }
-        val inline = mapOf(
-            "avatar" to InlineTextContent(
-                Placeholder(58.sp, 34.sp, PlaceholderVerticalAlign.TextCenter)
-            ) {
-                Box(
-                    Modifier.fillMaxSize().clip(RoundedCornerShape(17.dp))
-                        .background(Brush.linearGradient(listOf(Color(0xFFF2A3BB), Color(0xFF9B7BE0)))),
-                    contentAlignment = Alignment.Center
-                ) { Text("C", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, fontFamily = Sans) }
-            }
-        )
-        Text(
-            text, inlineContent = inline,
-            style = TextStyle(fontFamily = Sans, fontSize = 28.sp, lineHeight = 36.sp, letterSpacing = (-0.8).sp)
-        )
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(10.dp))
         Text(
             status,
             style = TextStyle(fontFamily = Sans, fontSize = 18.sp, color = Color.White.copy(alpha = 0.85f), letterSpacing = (-0.3).sp)
+        )
+    }
+}
+
+/** One message: you in white, CarfBot in grey, like the reference. */
+@Composable
+private fun Line(user: Boolean, text: String) {
+    Column {
+        Text(
+            if (user) "You" else "CarfBot",
+            style = TextStyle(fontFamily = Sans, fontSize = 15.sp, color = if (user) GreyText else Gold)
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text,
+            style = TextStyle(
+                fontFamily = Sans, fontSize = 24.sp, lineHeight = 31.sp, letterSpacing = (-0.5).sp,
+                color = if (user) Color.White else Color(0xFF9A9A9E)
+            )
         )
     }
 }

@@ -33,13 +33,16 @@ Open CarfBot, tap the gear icon: it shows whether CarfBot is your default assist
 - Chaining: "open camera, take a photo and share it on WhatsApp". The camera needs you to press the shutter, and the share sheet needs you to pick the contact.
 - Triggers: power-button hold, the corner swipe (turn on "Swipe from corners" in your phone's default assistant settings), and the experimental double-tap on the back (gear icon).
 
+## AI (Gemini, free)
+CarfBot uses the Google Gemini API. Get a free key at https://aistudio.google.com/apikey, then open the menu icon in the chat screen (or the gear on the home screen) and paste it. The free tier has per-minute and per-day limits, and Google may use free-tier prompts to improve its products.
+
 ## Commands
 - `open camera`, `launch spotify`
 - `call mom`, `contact john`
 - `play <song>` (local music first, then your music app)
 - `find photo <name>`, `find video <name>`, `find document <name>`
 - `directions to <place>`, `search <anything>`
-- Anything else goes to the AI chat (add your Anthropic API key in Settings).
+- Anything else goes to the AI chat (add your free Gemini API key in Settings).
 
 ## Notes
 - Fonts: uses the system sans font. Drop Inter in `res/font` and edit `Sans` in `Theme.kt` to change it.

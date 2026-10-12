@@ -93,81 +93,41 @@ val tips: List<Tip> get() = Ctx.tips()
 @Composable
 fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
     val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
     var screen by remember { mutableStateOf(Screen.Home) }
-    val msgs = remember { mutableStateListOf<Msg>() }
     var draft by remember { mutableStateOf("") }
-    var listening by remember { mutableStateOf(false) }
-    var thinking by remember { mutableStateOf(false) }
+    var autoListen by remember { mutableStateOf(false) }
+    var autoRun by remember { mutableStateOf<String?>(null) }
     var tip by remember { mutableIntStateOf(0) }
-    var actions by remember { mutableIntStateOf(0) }
     var showSettings by remember { mutableStateOf(false) }
 
     val perms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
-    LaunchedEffect(Unit) { perms.launch(Actions.permissions()) }
+    LaunchedEffect(Unit) { perms.launch(Actions.permissions() + arrayOf(android.Manifest.permission.RECORD_AUDIO)) }
 
-    val capture = rememberPhotoCapture()
-
-    fun send(text: String) {
-        val t = text.trim()
-        if (t.isEmpty()) return
-        screen = Screen.Chat
-        Haptics.tick(ctx)
-        msgs.add(Msg(t, true))
-        draft = ""
-        thinking = true
-        scope.launch {
-            val reply = Router.execute(ctx, t, capture)
-            if (reply != null) {
-                actions++
-                msgs.add(Msg(reply, false))
-            } else {
-                msgs.add(Msg(AiClient.ask(ctx, t), false))
-            }
-            thinking = false
+    LaunchedEffect(wantListen) {
+        if (wantListen) {
+            draft = ""; autoRun = null; autoListen = true
+            screen = Screen.Chat
+            onListenHandled()
         }
     }
-
-    val speech = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        listening = false
-        val said = r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-        if (r.resultCode == Activity.RESULT_OK && !said.isNullOrBlank()) send(said)
-    }
-
-    fun startListening() {
-        screen = Screen.Chat
-        listening = true
-        try {
-            speech.launch(
-                Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                    .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    .putExtra(RecognizerIntent.EXTRA_PROMPT, "Say a command")
-            )
-        } catch (e: Exception) {
-            listening = false
-            msgs.add(Msg("Voice input isn’t available on this device. You can type instead.", false))
-        }
-    }
-
-    LaunchedEffect(wantListen) { if (wantListen) { startListening(); onListenHandled() } }
-    BackHandler(enabled = screen == Screen.Chat) { screen = Screen.Home }
 
     when (screen) {
         Screen.Home -> HomeScreen(
             tip = tip,
             onPrev = { tip = (tip + tips.size - 1) % tips.size },
             onNext = { tip = (tip + 1) % tips.size },
-            onChip = { draft = it; screen = Screen.Chat },
-            onTip = { draft = tips[tip % tips.size].command; screen = Screen.Chat },
-            onAsk = { screen = Screen.Chat },
-            onRun = { send(it) },
-            counts = Triple(0, msgs.size, actions)
+            onChip = { draft = it; autoRun = null; autoListen = false; screen = Screen.Chat },
+            onTip = { draft = tips[tip % tips.size].command; autoRun = null; autoListen = false; screen = Screen.Chat },
+            onAsk = { draft = ""; autoRun = null; autoListen = true; screen = Screen.Chat },
+            onRun = { draft = ""; autoRun = it; autoListen = false; screen = Screen.Chat },
+            onSettings = { showSettings = true },
+            counts = Triple(0, 0, 0)
         )
-        Screen.Chat -> ChatScreen(
-            msgs = msgs, listening = listening, thinking = thinking, draft = draft,
-            onDraft = { draft = it }, onSend = { send(draft) }, onMic = { startListening() },
-            onBack = { screen = Screen.Home }, onSettings = { showSettings = true },
-            onShortcut = { draft = it }
+        Screen.Chat -> AssistantScreen(
+            blurOk = false, ping = 0,
+            embedded = true, initialDraft = draft, autoListen = autoListen, autoRun = autoRun,
+            onMenu = { showSettings = true },
+            onClose = { autoRun = null; screen = Screen.Home }
         )
     }
 
@@ -179,7 +139,8 @@ fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
 @Composable
 fun HomeScreen(
     tip: Int, onPrev: () -> Unit, onNext: () -> Unit, onChip: (String) -> Unit,
-    onTip: () -> Unit, onAsk: () -> Unit, onRun: (String) -> Unit, counts: Triple<Int, Int, Int>
+    onTip: () -> Unit, onAsk: () -> Unit, onRun: (String) -> Unit, onSettings: () -> Unit,
+    counts: Triple<Int, Int, Int>
 ) {
     Box(
         Modifier.fillMaxSize().background(
@@ -187,7 +148,9 @@ fun HomeScreen(
         )
     ) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 24.dp)) {
-            Spacer(Modifier.height(44.dp))
+            Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.End) {
+                GlassCircle(40.dp, onSettings) { Icon(Icons.Outlined.Settings, null, tint = Pal.Slate, modifier = Modifier.size(20.dp)) }
+            }
             // Blurred hero headline
             T("Just ask.", 54, Color.White, FontWeight.Bold, lineHeight = 56,
                 modifier = Modifier.blur(9.dp, BlurredEdgeTreatment.Unbounded))
@@ -503,10 +466,10 @@ private fun SettingsDialog(onDismiss: () -> Unit) {
         title = { T("CarfBot settings", 20, Pal.Slate, FontWeight.SemiBold) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                T("Anthropic API key (for AI chat)", 14, Pal.Blue)
+                T("Gemini API key (free): aistudio.google.com/apikey", 14, Pal.Blue)
                 Spacer(Modifier.height(6.dp))
                 OutlinedTextField(value = key, onValueChange = { key = it }, singleLine = true,
-                    placeholder = { T("sk-ant-…", 14, Pal.Blue) })
+                    placeholder = { T("AIza…", 14, Pal.Blue) })
                 Spacer(Modifier.height(14.dp))
                 val isDefault = remember { Actions.isDefaultAssistant(ctx) }
                 T(
