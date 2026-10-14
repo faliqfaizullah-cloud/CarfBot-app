@@ -91,7 +91,7 @@ data class Tip(
 val tips: List<Tip> get() = Ctx.tips()
 
 @Composable
-fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
+fun OldCarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
     val ctx = LocalContext.current
     var screen by remember { mutableStateOf(Screen.Home) }
     var draft by remember { mutableStateOf("") }
@@ -457,7 +457,7 @@ private fun Bubble(m: Msg) {
 }
 
 @Composable
-private fun SettingsDialog(onDismiss: () -> Unit) {
+fun SettingsDialog(onDismiss: () -> Unit) {
     val ctx = LocalContext.current
     var key by remember { mutableStateOf(Prefs.apiKey(ctx)) }
     AlertDialog(
@@ -507,7 +507,7 @@ private fun SettingsDialog(onDismiss: () -> Unit) {
 // ───────────────────────── Swipeable intent card ─────────────────────────
 
 @Composable
-private fun ActionPill(label: String, onClick: () -> Unit) {
+fun ActionPill(label: String, onClick: () -> Unit) {
     val ctx = LocalContext.current
     Box(
         Modifier.clip(CircleShape).background(Pal.Pill)
@@ -518,7 +518,7 @@ private fun ActionPill(label: String, onClick: () -> Unit) {
 
 /** Drag left or right to dismiss; the next card takes its place. */
 @Composable
-private fun SwipeCard(key: Int, onDismiss: () -> Unit, modifier: Modifier, content: @Composable () -> Unit) {
+fun SwipeCard(key: Int, onDismiss: () -> Unit, modifier: Modifier, content: @Composable () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val dragX = remember { Animatable(0f) }

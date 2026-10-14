@@ -17,6 +17,12 @@ Install the APK, open CarfBot, grant permissions, then tap the gear icon, then "
 When CarfBot is the default assistant, holding the power button (or long-pressing Home) opens a dark "Listening" overlay with an animated orb, live transcript and a glowing edge animation. Haptics fire when it opens, when listening starts, when a reply arrives and when an app, contact, song or file is opened.
 On some phones you must also set the power button to open the assistant: Settings > Advanced features > Side key > Press and hold > Wake digital assistant (Samsung), or Settings > System > Gestures > Power menu (Pixel).
 
+## App UI
+The app opens with a launch animation: the full-screen "Good Morning" card shrinks into a stack of cards. Tap a card (or pinch out on it) to expand it, and pinch in or press back to return to the stack.
+- Good Morning: the assistant chat (voice, typing, swipeable tip notes with action buttons).
+- Smart Shortcuts, Apps & Files, Music & Media, Clipboard & Screenshots: tap a note to run that command in the chat.
+- Settings: Gemini key, default assistant, overlay test, notification access, double-tap back.
+
 ## Overlay greeting
 When the assistant opens with no conversation yet, it shows a frosted greeting card ("Let's get started", "I'm Listening") and three glass orbs: files (left), a golden mic orb (centre) and camera (right). Once you speak or type, it switches to the live transcript.
 
