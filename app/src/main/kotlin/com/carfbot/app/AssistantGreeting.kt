@@ -1,6 +1,7 @@
 package com.carfbot.app
 
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -49,6 +50,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
@@ -252,17 +254,22 @@ private fun GlassOrb(diameter: Dp, onClick: () -> Unit, content: @Composable () 
 @Composable
 private fun GoldOrb(listening: Boolean, level: Float, pulse: Float, onClick: () -> Unit) {
     val ctx = LocalContext.current
+    val spin by rememberInfiniteTransition(label = "spin").animateFloat(
+        0f, 360f, infiniteRepeatable(tween(9000, easing = LinearEasing)), label = "spin"
+    )
     val s = if (listening) pulse + level * 0.12f else 1f
+    val cookie = remember { CookieShape(9, 0.07f) }
     Box(
-        Modifier.size(76.dp).scale(s)
+        Modifier.size(80.dp).scale(s)
             .shadow(22.dp, CircleShape, spotColor = Color(0xCCE9C46A), ambientColor = Color(0x55E9C46A))
-            .clip(CircleShape)
+            .graphicsLayer { rotationZ = if (listening) spin else 0f }
+            .clip(cookie)
             .background(
                 Brush.radialGradient(
                     0f to Color(0xFFFBEFC4), 0.55f to Color(0xFFDDB85F), 1f to Color(0xFF9A8040)
                 )
             )
-            .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.7f), Color.White.copy(alpha = 0.1f))), CircleShape)
+            .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.7f), Color.White.copy(alpha = 0.1f))), cookie)
             .clickable { Haptics.tick(ctx); onClick() },
         contentAlignment = Alignment.Center
     ) {
@@ -273,6 +280,9 @@ private fun GoldOrb(listening: Boolean, level: Float, pulse: Float, onClick: () 
                 size = Size(size.width * 0.56f, size.height * 0.2f)
             )
         }
-        Icon(Icons.Filled.Mic, null, tint = Color(0xFF4A3A12), modifier = Modifier.size(28.dp))
+        Icon(
+            Icons.Filled.Mic, null, tint = Color(0xFF4A3A12),
+            modifier = Modifier.size(28.dp).graphicsLayer { rotationZ = if (listening) -spin else 0f }
+        )
     }
 }

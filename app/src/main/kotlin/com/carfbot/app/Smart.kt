@@ -50,6 +50,9 @@ object Smart {
         val l = input.trim().replace(Regex("[.!?]+$"), "").replace('’', '\'').lowercase()
         if (l.isEmpty()) return null
 
+        // ----- device: battery, info, storage, network, flashlight, volume, timers, settings -----
+        Device.handle(ctx, l)?.let { return it }
+
         // ----- music control (works with any music app, no setup) -----
         if (pauseR.matches(l)) return mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_PAUSE, "Paused")
         if (resumeR.matches(l)) return mediaKey(ctx, KeyEvent.KEYCODE_MEDIA_PLAY, "Playing")

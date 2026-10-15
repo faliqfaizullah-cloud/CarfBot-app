@@ -17,6 +17,12 @@ Install the APK, open CarfBot, grant permissions, then tap the gear icon, then "
 When CarfBot is the default assistant, holding the power button (or long-pressing Home) opens a dark "Listening" overlay with an animated orb, live transcript and a glowing edge animation. Haptics fire when it opens, when listening starts, when a reply arrives and when an app, contact, song or file is opened.
 On some phones you must also set the power button to open the assistant: Settings > Advanced features > Side key > Press and hold > Wake digital assistant (Samsung), or Settings > System > Gestures > Power menu (Pixel).
 
+## Device functions
+Say or type: "battery" (level, charging, temperature, health), "device info", "device name", "storage", "memory", "network", "screen info", "uptime", "what time is it", "flashlight on/off", "volume up/down/mute/set volume to 40", "set timer 5 minutes", "set alarm 7:30 am", "wifi settings" (and bluetooth, display, battery, storage and more), "device report" for everything at once. The My Device card shows a live dashboard.
+
+## Design
+Glass panels, springy press and expand motion, wavy progress indicators, a cookie-shaped mic orb and wallpaper colours (Material You, Android 12+) give the app a Material 3 Expressive feel.
+
 ## App UI
 The app opens with a launch animation: the full-screen "Good Morning" card shrinks into a stack of cards. Tap a card (or pinch out on it) to expand it, and pinch in or press back to return to the stack.
 - Good Morning: the assistant chat (voice, typing, swipeable tip notes with action buttons).

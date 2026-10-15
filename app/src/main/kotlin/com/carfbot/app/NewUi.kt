@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -114,7 +115,7 @@ import kotlin.math.roundToInt
 
 // ═══════════════════════════ Cards ═══════════════════════════
 
-enum class CardKind { SHORTCUTS, HERO, MUSIC, FILES, CLIPBOARD, SETTINGS }
+enum class CardKind { SHORTCUTS, HERO, DEVICE, MUSIC, FILES, CLIPBOARD, SETTINGS }
 
 private class StackCard(val id: String, val title: String, val kind: CardKind, val height: Dp, val preview: String)
 
@@ -127,6 +128,7 @@ private fun heroTitle(): String = when (Ctx.hour()) {
 private fun stackCards(): List<StackCard> = listOf(
     StackCard("shortcuts", "Smart Shortcuts", CardKind.SHORTCUTS, 150.dp, Ctx.pills().first().command),
     StackCard("hero", heroTitle(), CardKind.HERO, 230.dp, ""),
+    StackCard("device", "My Device", CardKind.DEVICE, 150.dp, "battery"),
     StackCard("settings", "Settings", CardKind.SETTINGS, 58.dp, ""),
     StackCard("files", "Apps & Files", CardKind.FILES, 150.dp, "open camera, take a photo and share it on whatsapp"),
     StackCard("music", "Music & Media", CardKind.MUSIC, 150.dp, "next song"),
@@ -238,6 +240,11 @@ private fun Modifier.fixedSizeTopStart(w: Int, h: Int): Modifier = layout { meas
 
 @Composable
 fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
+    CarfTheme { CarfAppContent(wantListen, onListenHandled) }
+}
+
+@Composable
+private fun CarfAppContent(wantListen: Boolean, onListenHandled: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val view = LocalView.current
@@ -264,14 +271,14 @@ fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
         if (openId != null) return
         openId = id
         Haptics.click(ctx)
-        scope.launch { progress.animateTo(1f, tween(560, easing = FastOutSlowInEasing)) }
+        scope.launch { progress.animateTo(1f, spring(dampingRatio = 0.82f, stiffness = 320f)) }
     }
 
     fun collapse() {
         scope.launch {
             chat.cancelVoice()
             Haptics.tick(ctx)
-            progress.animateTo(0f, tween(520, easing = FastOutSlowInEasing))
+            progress.animateTo(0f, spring(dampingRatio = 0.9f, stiffness = 360f))
             openId = null
         }
     }
@@ -371,7 +378,7 @@ fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
         val card = cards.firstOrNull { it.id == id }
         val r = if (id != null) rects[id] else null
         if (card != null && r != null && rootSize.width > 0) {
-            val e = progress.value.coerceIn(0f, 1f)
+            val e = progress.value.coerceIn(0f, 1.03f)
             val fw = rootSize.width.toFloat()
             val fh = rootSize.height.toFloat()
             val left = lerp(r.left, 0f, e)
@@ -385,7 +392,7 @@ fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
                         val p = m.measure(Constraints.fixed(max(w.roundToInt(), 1), max(h.roundToInt(), 1)))
                         layout(p.width, p.height) { p.place(0, 0) }
                     }
-                    .clip(RoundedCornerShape(lerp(30f, 0f, e).dp))
+                    .clip(RoundedCornerShape(lerp(30f, 0f, e.coerceAtMost(1f)).dp))
             ) {
                 // 1) the card as it looks in the list, scaled up and fading out
                 Box(
@@ -405,6 +412,7 @@ fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
                 ) {
                     when (card.kind) {
                         CardKind.HERO -> ChatDetail(chat, !launching, { toggleMic() }, { run(it) }, { showSettings = true })
+                        CardKind.DEVICE -> DeviceDetail { run(it) }
                         else -> ShortcutDetail(card.title, itemsFor(card.kind)) { run(it) }
                     }
                 }
@@ -428,7 +436,7 @@ fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
 @Composable
 private fun HeaderPill(onSettings: () -> Unit) {
     Box(
-        Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(26.dp)).background(Color(0xFF2A272C)),
+        Modifier.fillMaxWidth().height(56.dp).glass(RoundedCornerShape(26.dp), dark = true),
         contentAlignment = Alignment.Center
     ) {
         Text("CarfBot", style = TextStyle(fontFamily = Sans, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color(0xFFEDE6EA)))
@@ -459,6 +467,7 @@ private fun StackCardItem(
                 translationY = (1f - t) * 90.dp.toPx()
             }
             .clip(RoundedCornerShape(30.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(30.dp))
             .clickable(onClick = onClick)
     ) { CardPreview(card) }
 }
@@ -469,6 +478,7 @@ private fun paletteFor(kind: CardKind): Triple<Color, Color, Color> = when (kind
     CardKind.FILES -> Triple(Color(0xFF241713), Color(0xFF9A4A22), Color(0xFFF4B9A6))
     CardKind.MUSIC -> Triple(Color(0xFF181A24), Color(0xFF3E5A9A), Color(0xFFBFD0F5))
     CardKind.CLIPBOARD -> Triple(Color(0xFF152019), Color(0xFF2F7A5A), Color(0xFFBFEBD3))
+    CardKind.DEVICE -> Triple(Color(0xFF111A22), Color(0xFF2A7FB5), Color(0xFFBFE3F5))
     CardKind.SETTINGS -> Triple(Color(0xFF38353A), Color(0xFF38353A), Color.White)
 }
 
@@ -502,7 +512,8 @@ private fun CardPreview(card: StackCard) {
                 card.title, modifier = Modifier.align(Alignment.TopCenter).padding(top = 18.dp),
                 style = TextStyle(fontFamily = Sans, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = titleColor)
             )
-            NoteMini(card.preview, Modifier.align(Alignment.BottomCenter).offset(y = 26.dp))
+            if (card.kind == CardKind.DEVICE) DeviceMini(Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp))
+            else NoteMini(card.preview, Modifier.align(Alignment.BottomCenter).offset(y = 26.dp))
         }
     }
 }
@@ -554,10 +565,10 @@ private fun HeroMiniCards(modifier: Modifier) {
 
 // ═══════════════════════════ Detail screens (light peach) ═══════════════════════════
 
-private fun peachBrush() = Brush.verticalGradient(listOf(Color(0xFFF7E3DA), Color(0xFFF2B9CF), Color(0xFFF6E6EE)))
+fun peachBrush() = Brush.verticalGradient(listOf(Color(0xFFF7E3DA), Color(0xFFF2B9CF), Color(0xFFF6E6EE)))
 
 @Composable
-private fun Glow() {
+fun Glow() {
     Canvas(Modifier.fillMaxSize()) {
         fun blob(c: Offset, rad: Float, color: Color) =
             drawCircle(Brush.radialGradient(listOf(color, Color.Transparent), c, rad), rad, c)
@@ -568,7 +579,7 @@ private fun Glow() {
 }
 
 @Composable
-private fun BigTitle(text: String, size: Int, modifier: Modifier = Modifier) {
+fun BigTitle(text: String, size: Int, modifier: Modifier = Modifier) {
     Text(
         text, modifier = modifier,
         style = TextStyle(
@@ -580,20 +591,16 @@ private fun BigTitle(text: String, size: Int, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun NoteCard(label: String, cmd: String, modifier: Modifier, onClick: () -> Unit) {
-    val ctx = LocalContext.current
-    Column(
-        modifier.height(100.dp)
-            .shadow(14.dp, RoundedCornerShape(22.dp), spotColor = Color(0x33B05A8A))
-            .clip(RoundedCornerShape(22.dp)).background(Color.White)
-            .clickable { Haptics.tick(ctx); onClick() }.padding(14.dp)
-    ) {
-        Text(
-            label, maxLines = 2,
-            style = TextStyle(fontFamily = FontFamily.Serif, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2B2430))
-        )
-        Spacer(Modifier.weight(1f))
-        T(cmd.trim().take(34), 12, Color(0xFF9A93A6), maxLines = 1)
+fun NoteCard(label: String, cmd: String, modifier: Modifier, onClick: () -> Unit) {
+    ExpressiveSurface(onClick, modifier.height(100.dp), dark = false, rest = 24.dp) {
+        Column(Modifier.fillMaxSize().padding(14.dp)) {
+            Text(
+                label, maxLines = 2,
+                style = TextStyle(fontFamily = FontFamily.Serif, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2B2430))
+            )
+            Spacer(Modifier.weight(1f))
+            T(cmd.trim().take(34), 12, Color(0xFF6C6672), maxLines = 1)
+        }
     }
 }
 
@@ -717,8 +724,8 @@ private fun ChatDetail(
 
             // input bar
             Row(
-                Modifier.fillMaxWidth().padding(vertical = 12.dp).height(58.dp).clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.80f)).padding(horizontal = 16.dp),
+                Modifier.fillMaxWidth().padding(vertical = 12.dp).height(58.dp)
+                    .glass(CircleShape, dark = false).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
@@ -760,9 +767,10 @@ private fun NoteBubble(user: Boolean, text: String) {
     Box(Modifier.fillMaxWidth(), contentAlignment = if (user) Alignment.CenterEnd else Alignment.CenterStart) {
         Box(
             Modifier.fillMaxWidth(0.86f)
-                .clip(RoundedCornerShape(22.dp))
-                .background(if (user) Color.White.copy(alpha = 0.95f) else Color.White.copy(alpha = 0.55f))
-                .border(1.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(22.dp))
+                .then(
+                    if (user) Modifier.clip(RoundedCornerShape(22.dp)).background(Color.White.copy(alpha = 0.95f))
+                    else Modifier.glass(RoundedCornerShape(22.dp), dark = false)
+                )
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             Text(
