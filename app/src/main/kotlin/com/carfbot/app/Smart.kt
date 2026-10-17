@@ -21,7 +21,16 @@ import androidx.core.app.NotificationManagerCompat
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
+import android.util.Base64
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import kotlin.math.max
 import kotlin.coroutines.resume
 
 /** Smarter commands: music control, lyrics, now playing, clipboard tools, screenshot text. */
@@ -40,6 +49,22 @@ object Smart {
     private val shotSumR = Regex("^summari[sz]e(?: (?:my|the))?(?: (?:latest|last|recent))? (screenshot|photo|picture|image)$")
     private val shotTextR = Regex("^(?:extract|read|get|copy|scan)(?: (?:the|all))? text (?:from|in|of)(?: (?:my|the))?(?: (?:latest|last|recent))? (screenshot|photo|picture|image)$")
     private val shotOcrR = Regex("^(?:ocr|scan)(?: (?:my|the))?(?: (?:latest|last|recent))? (screenshot|photo|picture|image)$")
+
+    private val recallR = Regex("^(?:what do you (?:remember|know) about me|what(?:'s| is) in your memory|show (?:my )?memories|my memories)$")
+    private val forgetR = Regex("^(?:please )?forget (?:everything|all|all memories|my memories)$")
+    private val clipFixR = Regex("^(rewrite|proofread|fix|shorten|expand|explain|simplify|polish|improve|paraphrase)(?: (?:my|the))? (?:clipboard|text)$")
+    private val clipToneR = Regex("^make(?: (?:my|the))? (?:clipboard|text)(?: more)? (formal|casual|friendly|professional|shorter|longer|polite|simple)$")
+    private val clipReplyR = Regex("^(?:reply to|respond to|answer)(?: (?:my|the))? (?:clipboard|message|text)(?: (?:with|saying) (.+))?$")
+    private val visDescR = Regex("^(?:describe|explain|analy[sz]e|identify|check)(?: (?:my|the))?(?: (?:latest|last|recent))? (screenshot|photo|picture|image)$|^what(?:'s| is) (?:in|on) (?:my |the )?(?:latest |last |recent )?(screenshot|photo|picture|image)$")
+    private val visSolveR = Regex("^(?:solve|answer)(?: (?:my|the))?(?: (?:latest|last|recent))? (screenshot|photo|picture|image)$")
+    private val visTransR = Regex("^translate(?: (?:my|the))?(?: (?:latest|last|recent))? (screenshot|photo|picture|image)(?: (?:to|into) (.+))?$")
+    private val visAskR = Regex("^(?:about|regarding) (?:my |the )?(?:latest |last |recent )?(screenshot|photo|picture|image)[,:]? (.+)$")
+
+    const val P_DESCRIBE = "Describe this image clearly and concisely. Mention any text, people, objects and what is going on."
+    const val P_SOLVE = "Solve the problem or answer the question shown in this image. Show brief working, then the final answer."
+    const val P_READ = "Extract and transcribe all the text in this image. Reply with only the text."
+    const val P_SUMMARY = "Summarize what this image shows or says in a few short bullet points."
+    fun translatePrompt(lang: String) = "Translate all the text in this image to $lang. Reply with only the translation."
 
     private const val NO_CLIP =
         "I can’t see anything in your clipboard. Copy some text first, and keep CarfBot open on screen " +
@@ -78,6 +103,59 @@ object Smart {
             }
             Actions.launch(ctx, Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + Uri.encode("$q lyrics"))))
             return "Opening lyrics for $q"
+        }
+
+        // ----- AI memory (kept only on this phone) -----
+        val raw = input.trim().trimEnd('.', '!', '?')
+        Regex("^(?:please )?remember(?: that)? (.+)$", RegexOption.IGNORE_CASE).matchEntire(raw)?.let { m ->
+            val fact = m.groupValues[1].trim()
+            Prefs.addMemory(ctx, fact)
+            return "Got it. I’ll remember: " + fact.take(200)
+        }
+        if (recallR.matches(l)) {
+            val mem = Prefs.memories(ctx)
+            return if (mem.isEmpty()) "I don’t have anything saved yet. Say “remember that …”."
+            else "I remember:\n" + mem.joinToString("\n") { "• $it" }
+        }
+        if (forgetR.matches(l)) {
+            Prefs.clearMemories(ctx)
+            return "Done. I’ve forgotten everything you asked me to remember."
+        }
+
+        // ----- rewrite / explain / reply using the clipboard -----
+        clipFixR.matchEntire(l)?.let { m ->
+            val t = clip(ctx) ?: return NO_CLIP
+            val task = when (m.groupValues[1]) {
+                "proofread", "fix" -> "Fix spelling, grammar and punctuation. Keep the wording and meaning. Reply with only the corrected text."
+                "shorten" -> "Shorten this text, keeping the key points. Reply with only the shortened text."
+                "expand" -> "Expand this text with a little more detail, keeping the meaning. Reply with only the new text."
+                "explain" -> "Explain this text in simple terms."
+                "simplify" -> "Rewrite this text in simpler words. Reply with only the new text."
+                "polish", "improve" -> "Improve the style and flow of this text, keeping the meaning. Reply with only the improved text."
+                "paraphrase" -> "Paraphrase this text. Reply with only the paraphrase."
+                else -> "Rewrite this text so it reads clearly and naturally, keeping the meaning and the language. Reply with only the rewritten text."
+            }
+            return AiClient.once(ctx, task + "\n\n" + t.take(6000))
+        }
+        clipToneR.matchEntire(l)?.let { m ->
+            val t = clip(ctx) ?: return NO_CLIP
+            return AiClient.once(ctx, "Rewrite this text to be more ${m.groupValues[1]}, keeping the meaning. Reply with only the new text.\n\n" + t.take(6000))
+        }
+        clipReplyR.matchEntire(l)?.let { m ->
+            val t = clip(ctx) ?: return NO_CLIP
+            val hint = m.groupValues[1].ifBlank { null }
+            return AiClient.once(ctx, "Write a short, polite reply to this message" + (if (hint != null) ", $hint" else "") +
+                ". Reply with only the reply text.\n\n" + t.take(6000))
+        }
+
+        // ----- looking at screenshots and photos -----
+        visDescR.matchEntire(l)?.let { m ->
+            return visionFor(ctx, m.groupValues[1].ifBlank { m.groupValues[2] }, P_DESCRIBE)
+        }
+        visSolveR.matchEntire(l)?.let { m -> return visionFor(ctx, m.groupValues[1], P_SOLVE) }
+        visTransR.matchEntire(l)?.let { m -> return visionFor(ctx, m.groupValues[1], translatePrompt(m.groupValues[2].ifBlank { "English" })) }
+        visAskR.matchEntire(l)?.let { m ->
+            return visionFor(ctx, m.groupValues[1], m.groupValues[2] + "\n(Answer using what you can see in the image.)")
         }
 
         // ----- clipboard -----
@@ -202,6 +280,55 @@ object Smart {
                 .addOnFailureListener { cont.resume("") }
         } catch (e: Exception) {
             cont.resume("")
+        }
+    }
+
+    private suspend fun visionFor(ctx: Context, kind: String, prompt: String): String {
+        val perm = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_IMAGES
+        else Manifest.permission.READ_EXTERNAL_STORAGE
+        if (ctx.checkSelfPermission(perm) != PackageManager.PERMISSION_GRANTED)
+            return "Allow photo access for CarfBot first (Settings > Apps > CarfBot > Permissions)."
+        val uri = latestImage(ctx, kind == "screenshot") ?: return "I couldn’t find a recent $kind."
+        return visionOn(ctx, uri, prompt)
+    }
+
+    /** Sends an image to Gemini with the given instruction. */
+    suspend fun visionOn(ctx: Context, uri: Uri, prompt: String): String {
+        if (!AiClient.hasKey(ctx)) return "Add your free Gemini key in Settings so I can look at images."
+        val b64 = withContext(Dispatchers.IO) { jpegBase64(ctx, uri) } ?: return "I couldn’t open that image."
+        return AiClient.vision(ctx, prompt, b64)
+    }
+
+    private fun jpegBase64(ctx: Context, uri: Uri): String? {
+        return try {
+            val cr = ctx.contentResolver
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            cr.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+            var sample = 1
+            val longest = max(bounds.outWidth, bounds.outHeight)
+            while (longest / sample > 1600) sample *= 2
+            val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+            var bmp = cr.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) } ?: return null
+            val rotation = try {
+                cr.openInputStream(uri)?.use { s ->
+                    when (ExifInterface(s).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+                        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                        else -> 0f
+                    }
+                } ?: 0f
+            } catch (e: Exception) {
+                0f
+            }
+            if (rotation != 0f) {
+                bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, Matrix().apply { postRotate(rotation) }, true)
+            }
+            val out = ByteArrayOutputStream()
+            bmp.compress(Bitmap.CompressFormat.JPEG, 82, out)
+            Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+        } catch (e: Exception) {
+            null
         }
     }
 }

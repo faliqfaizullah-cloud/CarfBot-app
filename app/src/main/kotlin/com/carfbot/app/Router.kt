@@ -18,6 +18,13 @@ object Router {
     private val photoR = Regex("^(?:please )?(?:take|snap|capture)(?: (?:a|the|me a))?(?: (?:new|quick))? (?:photo|picture|pic|selfie|snapshot)$")
     private val shareR = Regex("^(?:please )?(?:share|send|post)(?: (.+?))?(?: (?:on|to|with|via|through|in|using) (.+))?$")
     private val prepR = Regex("^(?:on|to|with|via|through|in|using) (.+)$")
+    private val openR = Regex("^(?:please )?(?:open|launch|start|run)\\s+(?:the\\s+)?(.+?)(?:\\s+app)?$")
+    private val switchR = Regex("^(?:please )?(?:go to|switch to|jump to|take me to)\\s+(?:the\\s+)?(.+?)(?:\\s+app)?$")
+    private val describePhotoR = Regex(
+        "^(?:please )?(describe|explain|identify|analy[sz]e|read|translate|solve|summari[sz]e)" +
+        "(?: (?:it|this|that|the (?:photo|picture|image|pic)))(?: (?:to|into) (.+))?$" +
+        "|^(?:tell me )?what(?:'s| is) (?:it|this|that)$|^what(?:'s| is) in (?:it|the photo|the picture)$"
+    )
 
     fun split(text: String): List<String> {
         val parts = text.trim().split(delimiters).map { it.trim() }.filter { it.isNotEmpty() }
@@ -47,7 +54,7 @@ object Router {
         Actions.launched = false
         val l = s.trim().replace(Regex("[.!?]+$"), "").replace('’', '\'').lowercase()
 
-        Smart.handle(ctx, l)?.let { return it }
+        Smart.handle(ctx, s.trim())?.let { return it }
 
         if (photoR.matches(l)) {
             val cap = capture ?: return "I can’t open the camera from here."
@@ -56,6 +63,22 @@ object Router {
             Actions.launched = true
             Haptics.confirm(ctx)
             return "Photo taken."
+        }
+
+        describePhotoR.matchEntire(l)?.let { m ->
+            val uri = st.photo
+            if (uri != null) {
+                val verb = m.groupValues[1]
+                val lang = m.groupValues[2].ifBlank { "English" }
+                val prompt = when {
+                    verb.startsWith("read") -> Smart.P_READ
+                    verb.startsWith("translate") -> Smart.translatePrompt(lang)
+                    verb.startsWith("solve") -> Smart.P_SOLVE
+                    verb.startsWith("summar") -> Smart.P_SUMMARY
+                    else -> Smart.P_DESCRIBE
+                }
+                return Smart.visionOn(ctx, uri, prompt)
+            }
         }
 
         shareR.matchEntire(l)?.let { m ->
@@ -67,7 +90,34 @@ object Router {
             return sharePhoto(ctx, uri, app)
         }
 
-        return Actions.handle(ctx, l)
+        // "go to youtube", "switch to whatsapp": open the app when one matches strongly
+        switchR.matchEntire(l)?.let { m ->
+            val hit = AppIndex.best(ctx, m.groupValues[1])
+            if (hit != null && hit.second >= 85) {
+                AppIndex.open(ctx, hit.first)
+                return "Opening ${hit.first.label}"
+            }
+        }
+
+        val r = Actions.handle(ctx, l)
+        if (r != null) {
+            // no app with that name: let the AI pick the closest installed app
+            if (r.startsWith("I couldn't find an app called") && AiClient.hasKey(ctx)) {
+                val name = openR.matchEntire(l)?.groupValues?.get(1) ?: l
+                val labels = AppIndex.get(ctx).map { it.label }
+                val pick = AiClient.pickApp(ctx, name, labels)
+                val entry = if (pick != null) AppIndex.byLabel(ctx, pick) else null
+                if (entry != null && AppIndex.open(ctx, entry)) return "Opening ${entry.label}"
+            }
+            return r
+        }
+
+        // a bare app name ("youtube", "whatsapp") opens instantly, without asking the AI
+        if (l.length >= 3 && l.split(" ").size <= 2) {
+            val hit = AppIndex.best(ctx, l)
+            if (hit != null && hit.second >= 85 && AppIndex.open(ctx, hit.first)) return "Opening ${hit.first.label}"
+        }
+        return null
     }
 
     private fun sharePhoto(ctx: Context, uri: Uri, app: String): String {

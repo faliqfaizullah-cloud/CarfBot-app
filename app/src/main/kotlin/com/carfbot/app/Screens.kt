@@ -471,6 +471,17 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                 OutlinedTextField(value = key, onValueChange = { key = it }, singleLine = true,
                     placeholder = { T("AIza…", 14, Pal.Blue) })
                 Spacer(Modifier.height(14.dp))
+                var accurate by remember { mutableStateOf(Prefs.aiMode(ctx) == 1) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        T("Accurate AI mode", 15, Pal.Slate, FontWeight.Medium)
+                        T("Web search for facts and a stronger model. Slower, uses more of the free limit.", 12, Pal.Blue)
+                    }
+                    Switch(checked = accurate, onCheckedChange = { accurate = it; Prefs.setAiMode(ctx, if (it) 1 else 0) })
+                }
+                TextButton(onClick = { Prefs.clearMemories(ctx) }) {
+                    T("Clear what CarfBot remembers", 15, Pal.Slate, FontWeight.Medium)
+                }
                 val isDefault = remember { Actions.isDefaultAssistant(ctx) }
                 T(
                     if (isDefault) "✓ CarfBot is your default assistant" else "CarfBot is not your default assistant yet",

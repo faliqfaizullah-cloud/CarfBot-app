@@ -98,19 +98,10 @@ object Actions {
         categoryAliases[q]?.let { cat ->
             if (start(ctx, Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, cat))) return "Opening $title"
         }
-        val pm = ctx.packageManager
-        val main = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val best = pm.queryIntentActivities(main, 0)
-            .map { it to it.loadLabel(pm).toString().lowercase() }
-            .filter { (_, label) -> label.contains(q) || (label.length >= 3 && q.contains(label)) }
-            .minWithOrNull(compareBy(
-                { (_, label) -> if (label == q) 0 else if (label.startsWith(q)) 1 else 2 },
-                { (_, label) -> kotlin.math.abs(label.length - q.length) }
-            ))
-        if (best != null) {
-            val pkg = best.first.activityInfo.packageName
-            val launch = pm.getLaunchIntentForPackage(pkg)
-            if (launch != null && start(ctx, launch)) return "Opening ${best.second.replaceFirstChar { it.uppercase() }}"
+        val hit = AppIndex.best(ctx, q)
+        if (hit != null && hit.second >= 55) {
+            AppIndex.open(ctx, hit.first)
+            return "Opening ${hit.first.label}"
         }
         return "I couldn't find an app called \"$q\" on this phone."
     }

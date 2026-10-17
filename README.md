@@ -17,6 +17,14 @@ Install the APK, open CarfBot, grant permissions, then tap the gear icon, then "
 When CarfBot is the default assistant, holding the power button (or long-pressing Home) opens a dark "Listening" overlay with an animated orb, live transcript and a glowing edge animation. Haptics fire when it opens, when listening starts, when a reply arrives and when an app, contact, song or file is opened.
 On some phones you must also set the power button to open the assistant: Settings > Advanced features > Side key > Press and hold > Wake digital assistant (Samsung), or Settings > System > Gestures > Power menu (Pixel).
 
+## AI features (Gemini)
+- Free-form requests: "wake me in 20 minutes", "I need the flashlight", "open the app for editing photos" are turned into phone actions.
+- Fresh facts (news, prices, weather, scores) use Google Search and show their sources. Answers stream in as they are written. In Settings, Accurate AI mode picks the stronger model and lowers the randomness.
+- Images: "describe my screenshot", "what's in my latest photo", "solve my screenshot", "translate my screenshot to Spanish", "about my screenshot, <question>". In a chain: "take a photo and describe it".
+- Clipboard: "rewrite / proofread / shorten / expand / explain / simplify clipboard", "make clipboard more formal", "reply to clipboard".
+- Memory (kept on the phone only): "remember that I'm allergic to nuts", "what do you remember", "forget everything".
+- Instant apps: the app list is prepared in advance, so "open youtube", "yt", "you tube" or just "whatsapp" opens at once. Small typos work, and when nothing matches the AI picks the closest installed app.
+
 ## Device functions
 Say or type: "battery" (level, charging, temperature, health), "device info", "device name", "storage", "memory", "network", "screen info", "uptime", "what time is it", "flashlight on/off", "volume up/down/mute/set volume to 40", "set timer 5 minutes", "set alarm 7:30 am", "wifi settings" (and bluetooth, display, battery, storage and more), "device report" for everything at once. The My Device card shows a live dashboard.
 

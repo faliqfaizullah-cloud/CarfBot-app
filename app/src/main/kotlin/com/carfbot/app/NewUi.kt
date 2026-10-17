@@ -193,7 +193,15 @@ class ChatState(
         thinking = true
         scope.launch {
             val reply = Router.execute(ctx, t, capture)
-            entries.add(Msg(reply ?: AiClient.ask(ctx, t), false))
+            if (reply != null) {
+                entries.add(Msg(reply, false))
+            } else {
+                var idx = -1
+                val answer = AiClient.ask(ctx, t, { x ->
+                    if (idx < 0) { idx = entries.size; entries.add(Msg(x, false)) } else { entries[idx] = Msg(x, false) }
+                }, capture)
+                if (idx >= 0) entries[idx] = Msg(answer, false) else entries.add(Msg(answer, false))
+            }
             thinking = false
             Haptics.click(ctx)
         }
@@ -718,7 +726,7 @@ private fun ChatDetail(
                 ) {
                     items(chat.entries) { NoteBubble(it.fromUser, it.text) }
                     if (chat.partial.isNotEmpty()) item { NoteBubble(true, chat.partial) }
-                    if (chat.thinking) item { NoteBubble(false, "…") }
+                    if (chat.thinking && chat.entries.lastOrNull()?.fromUser != false) item { NoteBubble(false, "…") }
                 }
             }
 

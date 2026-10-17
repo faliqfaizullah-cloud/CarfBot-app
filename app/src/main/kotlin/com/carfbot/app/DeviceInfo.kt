@@ -313,7 +313,7 @@ object Device {
     private val netR = Regex("\\b(?:wifi|wi-fi|internet|network|ip address|connection|online)\\b")
     private val scrR = Regex("\\b(?:screen (?:size|info|resolution)|resolution|refresh rate|brightness|display info)\\b")
     private val upR = Regex("\\buptime\\b|how long has my phone been (?:on|running)|last (?:restart|reboot)")
-    private val skipR = Regex("^(?:why|explain|how does|how do|what is a|what are)\\b")
+    private val skipR = Regex("^(?:why|explain|how does|how do|what is a|what are|remember|forget|please remember)\\b")
     private val actionStartR = Regex("^(?:open|launch|start|call|play|find|search|share|send|take|set)\\b")
     private val settingsWordR = Regex("\\b(?:settings|saver)\\b")
 

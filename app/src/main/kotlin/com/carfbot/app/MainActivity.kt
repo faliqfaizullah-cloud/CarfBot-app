@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        AppIndex.warm(this)
         listenNow = wantsListen(intent)
         setContent { CarfApp(listenNow) { listenNow = false } }
     }

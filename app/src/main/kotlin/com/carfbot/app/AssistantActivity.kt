@@ -99,6 +99,7 @@ class AssistantActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(AColor.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(AColor.TRANSPARENT)
         )
+        AppIndex.warm(this)
         // Full screen, including the camera cutout area
         if (Build.VERSION.SDK_INT >= 28) {
             window.attributes = window.attributes.apply {
@@ -302,9 +303,13 @@ fun AssistantScreen(
                 mode = Mode.Idle
                 if (Actions.launched && !embedded) { delay(900); close() } else Haptics.click(ctx)
             } else {
-                entries.add(Msg(AiClient.ask(ctx, t), false))
+                var idx = -1
+                val answer = AiClient.ask(ctx, t, { x ->
+                    if (idx < 0) { idx = entries.size; entries.add(Msg(x, false)) } else { entries[idx] = Msg(x, false) }
+                }, capture)
+                if (idx >= 0) entries[idx] = Msg(answer, false) else entries.add(Msg(answer, false))
                 mode = Mode.Idle
-                Haptics.click(ctx)
+                if (Actions.launched && !embedded) { delay(900); close() } else Haptics.click(ctx)
             }
         }
     }
