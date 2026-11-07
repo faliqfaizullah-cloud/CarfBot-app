@@ -17,6 +17,18 @@ Install the APK, open CarfBot, grant permissions, then tap the gear icon, then "
 When CarfBot is the default assistant, holding the power button (or long-pressing Home) opens a dark "Listening" overlay with an animated orb, live transcript and a glowing edge animation. Haptics fire when it opens, when listening starts, when a reply arrives and when an app, contact, song or file is opened.
 On some phones you must also set the power button to open the assistant: Settings > Advanced features > Side key > Press and hold > Wake digital assistant (Samsung), or Settings > System > Gestures > Power menu (Pixel).
 
+## Icon and side bar
+The launcher icon is the glossy blue-violet squircle on periwinkle (with a themed-icon version). Navigation is a frosted side bar on the right edge: sparkle (Home), calendar (Tools), chat bubble (Chat), folder (AI Studio) and chart (Device). Settings has a switch for the light glass version.
+
+## Futuristic Blur theme (default)
+Pastel sky that changes with the time of day, drifting blurred light, thin large type, glass buttons and a round bottom bar. Screens sharpen into focus as they open, and the app launches with the CarfBot wordmark pulling into focus. Switch back to the card stack in Settings.
+- Home: greeting, tips, shortcuts to Chat, AI Studio and Device, and tiles for notes, to-do, briefing and notifications.
+- AI Studio: pick a photo or your latest screenshot. Touch any area to blur, tint or pixelate it. The wand asks the AI what is in an area, describes the whole image, tags it and writes a text-to-image style prompt. Re-prompt rewrites the prompt in a style you type. Save puts the result in Pictures/CarfBot. (AI image generation needs a paid Gemini key and is not included.)
+- Tools: every command grouped in one place.
+
+## Assistant skills
+"summarize my notifications" (turn on notification access; kept in memory only), "what's on my calendar today", "next event", "daily briefing", "add milk to my shopping list", "note: call the bank", "show my todo list", "done milk", "remind me to stretch in 30 minutes", "remind me at 5:30 pm to leave", "text mom running late", "write an email to Sam about the invoice" (copied to your clipboard), "stop talking". Voice questions are answered aloud; Settings can read typed answers aloud too.
+
 ## AI features (Gemini)
 - Free-form requests: "wake me in 20 minutes", "I need the flashlight", "open the app for editing photos" are turned into phone actions.
 - Fresh facts (news, prices, weather, scores) use Google Search and show their sources. Answers stream in as they are written. In Settings, Accurate AI mode picks the stronger model and lowers the randomness.

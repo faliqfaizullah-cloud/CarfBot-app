@@ -50,6 +50,34 @@ object Prefs {
     }
 
     fun clearMemories(ctx: Context) = p(ctx).edit().remove("memories").apply()
+
+    /** 0 = card stack, 1 = Futuristic Blur (default). */
+    fun theme(ctx: Context): Int = p(ctx).getInt("theme", 1)
+    fun setTheme(ctx: Context, v: Int) = p(ctx).edit().putInt("theme", v).apply()
+
+    fun speak(ctx: Context): Boolean = p(ctx).getBoolean("speak", false)
+    fun setSpeak(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("speak", v).apply()
+
+    /** Side bar style: false = dark glass (default), true = light glass. */
+    fun navLight(ctx: Context): Boolean = p(ctx).getBoolean("nav_light", false)
+    fun setNavLight(ctx: Context, v: Boolean) = p(ctx).edit().putBoolean("nav_light", v).apply()
+
+    /** Simple on-phone lists: "todo", "shopping", "notes". */
+    fun list(ctx: Context, name: String): List<String> {
+        val raw = p(ctx).getString("list_$name", "[]") ?: "[]"
+        return try {
+            val a = JSONArray(raw)
+            List(a.length()) { a.getString(it) }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun setList(ctx: Context, name: String, items: List<String>) {
+        val a = JSONArray()
+        items.takeLast(100).forEach { a.put(it) }
+        p(ctx).edit().putString("list_$name", a.toString()).apply()
+    }
 }
 
 /**

@@ -471,6 +471,30 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                 OutlinedTextField(value = key, onValueChange = { key = it }, singleLine = true,
                     placeholder = { T("AIza…", 14, Pal.Blue) })
                 Spacer(Modifier.height(14.dp))
+                var futur by remember { mutableStateOf(Prefs.theme(ctx) == 1) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        T("Futuristic blur theme", 15, Pal.Slate, FontWeight.Medium)
+                        T("Pastel glass look with AI Studio. Turn off for the card stack.", 12, Pal.Blue)
+                    }
+                    Switch(checked = futur, onCheckedChange = { futur = it; Prefs.setTheme(ctx, if (it) 1 else 0); Look.futuristic = it })
+                }
+                var speakOn by remember { mutableStateOf(Prefs.speak(ctx)) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        T("Speak answers aloud", 15, Pal.Slate, FontWeight.Medium)
+                        T("Voice questions are always answered aloud.", 12, Pal.Blue)
+                    }
+                    Switch(checked = speakOn, onCheckedChange = { speakOn = it; Prefs.setSpeak(ctx, it) })
+                }
+                var navL by remember { mutableStateOf(Prefs.navLight(ctx)) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        T("Light glass side bar", 15, Pal.Slate, FontWeight.Medium)
+                        T("Pale blue frosted side bar instead of the dark one.", 12, Pal.Blue)
+                    }
+                    Switch(checked = navL, onCheckedChange = { navL = it; Prefs.setNavLight(ctx, it); Look.navLight = it })
+                }
                 var accurate by remember { mutableStateOf(Prefs.aiMode(ctx) == 1) }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {

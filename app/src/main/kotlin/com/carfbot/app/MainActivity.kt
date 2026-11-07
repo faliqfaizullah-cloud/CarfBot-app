@@ -21,6 +21,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         AppIndex.warm(this)
+        Look.futuristic = Prefs.theme(this) == 1
+        Look.navLight = Prefs.navLight(this)
         listenNow = wantsListen(intent)
         setContent { CarfApp(listenNow) { listenNow = false } }
     }

@@ -50,6 +50,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
@@ -119,7 +120,7 @@ enum class CardKind { SHORTCUTS, HERO, DEVICE, MUSIC, FILES, CLIPBOARD, SETTINGS
 
 private class StackCard(val id: String, val title: String, val kind: CardKind, val height: Dp, val preview: String)
 
-private fun heroTitle(): String = when (Ctx.hour()) {
+fun heroTitle(): String = when (Ctx.hour()) {
     in 5..11 -> "Good Morning"
     in 12..17 -> "Good Afternoon"
     else -> "Good Evening"
@@ -135,7 +136,7 @@ private fun stackCards(): List<StackCard> = listOf(
     StackCard("clipboard", "Clipboard & Screenshots", CardKind.CLIPBOARD, 150.dp, "summarize clipboard")
 )
 
-private fun itemsFor(kind: CardKind): List<Pair<String, String>> = when (kind) {
+fun itemsFor(kind: CardKind): List<Pair<String, String>> = when (kind) {
     CardKind.SHORTCUTS -> Ctx.pills().map { it.label to it.command }
     CardKind.FILES -> listOf(
         "Open an app" to "open ", "Find a file" to "find file ", "Find a photo" to "find photo ",
@@ -174,7 +175,7 @@ class ChatState(
     init {
         voice.onLevel = { level = it }
         voice.onPartial = { partial = it }
-        voice.onFinal = { send(it) }
+        voice.onFinal = { send(it, true) }
         voice.onError = { m -> partial = ""; Haptics.reject(ctx); entries.add(Msg(m, false)) }
         voice.onState = { on -> listening = on }
     }
@@ -184,7 +185,7 @@ class ChatState(
     fun stopListening() { voice.finish() }
     fun cancelVoice() { voice.cancel() }
 
-    fun send(text: String) {
+    fun send(text: String, byVoice: Boolean = false) {
         val t = text.trim()
         if (t.isEmpty()) return
         partial = ""; draft = ""
@@ -193,17 +194,21 @@ class ChatState(
         thinking = true
         scope.launch {
             val reply = Router.execute(ctx, t, capture)
+            val shown: String
             if (reply != null) {
                 entries.add(Msg(reply, false))
+                shown = reply
             } else {
                 var idx = -1
                 val answer = AiClient.ask(ctx, t, { x ->
                     if (idx < 0) { idx = entries.size; entries.add(Msg(x, false)) } else { entries[idx] = Msg(x, false) }
                 }, capture)
                 if (idx >= 0) entries[idx] = Msg(answer, false) else entries.add(Msg(answer, false))
+                shown = answer
             }
             thinking = false
             Haptics.click(ctx)
+            if (byVoice || Prefs.speak(ctx)) Speaker.speak(ctx, shown)
         }
     }
 
@@ -248,7 +253,9 @@ private fun Modifier.fixedSizeTopStart(w: Int, h: Int): Modifier = layout { meas
 
 @Composable
 fun CarfApp(wantListen: Boolean, onListenHandled: () -> Unit) {
-    CarfTheme { CarfAppContent(wantListen, onListenHandled) }
+    CarfTheme {
+        if (Look.futuristic) FutureApp(wantListen, onListenHandled) else CarfAppContent(wantListen, onListenHandled)
+    }
 }
 
 @Composable
@@ -573,10 +580,12 @@ private fun HeroMiniCards(modifier: Modifier) {
 
 // ═══════════════════════════ Detail screens (light peach) ═══════════════════════════
 
-fun peachBrush() = Brush.verticalGradient(listOf(Color(0xFFF7E3DA), Color(0xFFF2B9CF), Color(0xFFF6E6EE)))
+fun peachBrush(): Brush =
+    if (Look.futuristic) Brush.verticalGradient(Look.skyColors())
+    else Brush.verticalGradient(listOf(Color(0xFFF7E3DA), Color(0xFFF2B9CF), Color(0xFFF6E6EE)))
 
 @Composable
-fun Glow() {
+fun PeachGlow() {
     Canvas(Modifier.fillMaxSize()) {
         fun blob(c: Offset, rad: Float, color: Color) =
             drawCircle(Brush.radialGradient(listOf(color, Color.Transparent), c, rad), rad, c)
@@ -588,14 +597,24 @@ fun Glow() {
 
 @Composable
 fun BigTitle(text: String, size: Int, modifier: Modifier = Modifier) {
+    val fut = Look.futuristic
     Text(
         text, modifier = modifier,
         style = TextStyle(
-            fontFamily = Sans, fontSize = size.sp, fontWeight = FontWeight.Bold, lineHeight = (size * 0.92f).sp,
-            letterSpacing = (-2).sp, color = Color.White.copy(alpha = 0.96f),
-            shadow = Shadow(Color(0x66C94A93), Offset(0f, 8f), 36f)
+            fontFamily = Sans, fontSize = size.sp,
+            fontWeight = if (fut) FontWeight.Light else FontWeight.Bold,
+            lineHeight = (size * 0.92f).sp,
+            letterSpacing = (if (fut) -(size * 0.045f) else -2f).sp,
+            color = if (fut) Look.ink else Color.White.copy(alpha = 0.96f),
+            shadow = if (fut) null else Shadow(Color(0x66C94A93), Offset(0f, 8f), 36f)
         )
     )
+}
+
+/** Soft background light: pastel blobs in the Futuristic theme, warm peach in the card-stack theme. */
+@Composable
+fun Glow() {
+    if (Look.futuristic) FutureGlow() else PeachGlow()
 }
 
 @Composable
@@ -652,8 +671,9 @@ private fun TipNote(tip: Tip, onRun: (String) -> Unit, modifier: Modifier) {
 }
 
 @Composable
-private fun ChatDetail(
-    chat: ChatState, interactive: Boolean, onMic: () -> Unit, onRun: (String) -> Unit, onSettings: () -> Unit
+fun ChatDetail(
+    chat: ChatState, interactive: Boolean, onMic: () -> Unit, onRun: (String) -> Unit, onSettings: () -> Unit,
+    onBack: (() -> Unit)? = null
 ) {
     val ctx = LocalContext.current
     var tipIdx by remember { mutableIntStateOf(0) }
@@ -673,6 +693,10 @@ private fun ChatDetail(
                 .padding(horizontal = 20.dp)
         ) {
             Row(Modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (onBack != null) {
+                    GlassCircle(44.dp, onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Pal.Slate, modifier = Modifier.size(20.dp)) }
+                    Spacer(Modifier.width(10.dp))
+                }
                 if (conversation) BigTitle(heroTitle(), 28)
                 Spacer(Modifier.weight(1f))
                 if (conversation) {

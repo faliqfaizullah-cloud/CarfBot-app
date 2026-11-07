@@ -18,7 +18,7 @@ object Actions {
     @Volatile var launched = false
 
     fun permissions(): Array<String> {
-        val base = mutableListOf(Manifest.permission.READ_CONTACTS)
+        val base = mutableListOf(Manifest.permission.READ_CONTACTS, Manifest.permission.READ_CALENDAR)
         if (Build.VERSION.SDK_INT >= 33) {
             base += listOf(
                 Manifest.permission.READ_MEDIA_AUDIO,
@@ -130,6 +130,18 @@ object Actions {
             }
         }
         return "I couldn't find a contact named \"$who\"."
+    }
+
+    /** Finds a contact by name; returns (display name, phone number) or null. */
+    fun lookupNumber(ctx: Context, who: String): Pair<String, String>? {
+        if (!has(ctx, Manifest.permission.READ_CONTACTS)) return null
+        ctx.contentResolver.query(
+            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+            arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER),
+            "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?", arrayOf("%$who%"),
+            "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} ASC"
+        )?.use { c -> if (c.moveToFirst()) return c.getString(0) to c.getString(1) }
+        return null
     }
 
     private fun openContact(ctx: Context, who: String): String {

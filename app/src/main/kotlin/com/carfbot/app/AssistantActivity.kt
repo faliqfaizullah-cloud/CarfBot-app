@@ -289,7 +289,7 @@ fun AssistantScreen(
 
     val capture = rememberPhotoCapture()
 
-    fun send(text: String) {
+    fun send(text: String, byVoice: Boolean = false) {
         val t = text.trim()
         if (t.isEmpty()) return
         partial = ""; draft = ""
@@ -300,6 +300,7 @@ fun AssistantScreen(
             val reply = Router.execute(ctx, t, capture)
             if (reply != null) {
                 entries.add(Msg(reply, false))
+                if (byVoice || Prefs.speak(ctx)) Speaker.speak(ctx, reply)
                 mode = Mode.Idle
                 if (Actions.launched && !embedded) { delay(900); close() } else Haptics.click(ctx)
             } else {
@@ -308,6 +309,7 @@ fun AssistantScreen(
                     if (idx < 0) { idx = entries.size; entries.add(Msg(x, false)) } else { entries[idx] = Msg(x, false) }
                 }, capture)
                 if (idx >= 0) entries[idx] = Msg(answer, false) else entries.add(Msg(answer, false))
+                if (byVoice || Prefs.speak(ctx)) Speaker.speak(ctx, answer)
                 mode = Mode.Idle
                 if (Actions.launched && !embedded) { delay(900); close() } else Haptics.click(ctx)
             }
@@ -319,7 +321,7 @@ fun AssistantScreen(
     DisposableEffect(Unit) {
         voice.onLevel = { level = it }
         voice.onPartial = { partial = it }
-        voice.onFinal = { send(it) }
+        voice.onFinal = { send(it, true) }
         voice.onError = { msg -> partial = ""; mode = Mode.Idle; Haptics.reject(ctx); entries.add(Msg(msg, false)) }
         voice.onState = { on -> if (on) mode = Mode.Listening else if (mode == Mode.Listening) mode = Mode.Idle }
         onDispose { voice.cancel() }
